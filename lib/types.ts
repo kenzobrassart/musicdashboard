@@ -51,6 +51,24 @@ export interface Concert {
   createdAt: Date
 }
 
+// ─── Facture ───────────────────────────────────────────────
+export type StatutFacture = 'brouillon' | 'envoyee' | 'payee' | 'en_retard'
+
+export interface Facture {
+  id: string
+  numero: string
+  artisteId?: string
+  client: string
+  montantHT: number
+  tva: number
+  montantTTC: number
+  statut: StatutFacture
+  dateEmission: Date
+  dateEcheance: Date
+  description?: string
+  createdAt: Date
+}
+
 // ─── Stats Dashboard ───────────────────────────────────────
 export interface DashboardStats {
   totalRevenus: number

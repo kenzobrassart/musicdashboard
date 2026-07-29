@@ -4,34 +4,34 @@ import {
   type Unsubscribe
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import type { Depense } from '@/lib/types'
+import type { Facture } from '@/lib/types'
 
-const COL = 'depenses'
+const COL = 'factures'
 
-export function subscribeDepenses(
+export function subscribeFactures(
   uid: string,
-  cb: (depenses: Depense[]) => void
+  cb: (factures: Facture[]) => void
 ): Unsubscribe {
   const q = query(
     collection(db, 'users', uid, COL),
-    orderBy('date', 'desc')
+    orderBy('dateEmission', 'desc')
   )
   return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Depense)))
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Facture)))
   })
 }
 
-export async function addDepense(uid: string, data: Omit<Depense, 'id' | 'createdAt'>) {
+export async function addFacture(uid: string, data: Omit<Facture, 'id' | 'createdAt'>) {
   return addDoc(collection(db, 'users', uid, COL), {
     ...data,
     createdAt: Timestamp.now(),
   })
 }
 
-export async function updateDepense(uid: string, id: string, data: Partial<Depense>) {
+export async function updateFacture(uid: string, id: string, data: Partial<Facture>) {
   return updateDoc(doc(db, 'users', uid, COL, id), data)
 }
 
-export async function deleteDepense(uid: string, id: string) {
+export async function deleteFacture(uid: string, id: string) {
   return deleteDoc(doc(db, 'users', uid, COL, id))
 }
