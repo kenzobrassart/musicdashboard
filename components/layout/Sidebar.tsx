@@ -2,16 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, TrendingUp, TrendingDown, Music, FileText } from 'lucide-react'
+import { LayoutDashboard, Music2, Wallet, FolderOpen, Landmark, BarChart3, FileText, Building2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/artistes',  label: 'Artistes',  icon: Users },
-  { href: '/revenus',   label: 'Revenus',   icon: TrendingUp },
-  { href: '/depenses',  label: 'Dépenses',  icon: TrendingDown },
-  { href: '/concerts',  label: 'Concerts',  icon: Music },
-  { href: '/factures',  label: 'Factures',  icon: FileText },
+  { href: '/cachets', label: 'Cachets', icon: Music2 },
+  { href: '/operations', label: 'Revenus & dépenses', icon: Wallet },
+  { href: '/documents', label: 'Documents', icon: FolderOpen },
+  { href: '/fiscalite', label: 'Fiscalité', icon: Landmark },
+  { href: '/statistiques', label: 'Statistiques', icon: BarChart3 },
+  { href: '/factures', label: 'Factures', icon: FileText },
+  { href: '/clients', label: 'Clients', icon: Building2 },
 ]
 
 export default function Sidebar() {

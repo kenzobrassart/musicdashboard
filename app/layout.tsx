@@ -4,6 +4,9 @@ import '../styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
+// Pages authentifiées, propres à chaque utilisateur : pas de pré-rendu statique.
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Compta Musique',
   description: 'Application de comptabilité musicale',
