@@ -2,15 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, TrendingUp, TrendingDown, Music } from 'lucide-react'
+import { LayoutDashboard, Users, TrendingUp, TrendingDown, Music, FileText } from 'lucide-react'
 import { clsx } from 'clsx'
 
+// 5 items max sur mobile — Dashboard, Revenus, Dépenses, Concerts, Factures
+// Artistes accessible via Sidebar desktop ou page Dashboard
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/artistes',  label: 'Artistes',  icon: Users },
   { href: '/revenus',   label: 'Revenus',   icon: TrendingUp },
   { href: '/depenses',  label: 'Dépenses',  icon: TrendingDown },
   { href: '/concerts',  label: 'Concerts',  icon: Music },
+  { href: '/factures',  label: 'Factures',  icon: FileText },
 ]
 
 export default function BottomNav() {

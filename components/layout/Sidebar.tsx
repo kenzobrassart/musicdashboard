@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, TrendingUp, TrendingDown, Music } from 'lucide-react'
+import { LayoutDashboard, Users, TrendingUp, TrendingDown, Music, FileText } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { href: '/revenus',   label: 'Revenus',   icon: TrendingUp },
   { href: '/depenses',  label: 'Dépenses',  icon: TrendingDown },
   { href: '/concerts',  label: 'Concerts',  icon: Music },
+  { href: '/factures',  label: 'Factures',  icon: FileText },
 ]
 
 export default function Sidebar() {
