@@ -3,12 +3,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Chaque utilisateur accède uniquement à ses propres données
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Chaque utilisateur ne peut lire/écrire QUE ses propres données
+    match /users/{userId}/{collection}/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Blocage par défaut
+    // Bloquer tout le reste par défaut
     match /{document=**} {
       allow read, write: if false;
     }
