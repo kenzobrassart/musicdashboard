@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/ui/Logo'
 
 const ERROR_MESSAGES: Record<string, string> = {
   'auth/invalid-email': 'Adresse email invalide.',
@@ -68,8 +69,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary px-4">
-      <div className="bg-bg-card border border-bg-border rounded-xl p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold mb-2 text-center">Compta Musique</h1>
+      <div className="card-glass p-8 w-full max-w-sm animate-fade-in-up">
+        <div className="flex justify-center mb-4">
+          <Logo size={44} />
+        </div>
+        <h1 className="text-2xl font-bold mb-2 text-center">Studio Ops</h1>
         <p className="text-text-muted mb-6 text-sm text-center">
           {mode === 'login' ? 'Connecte-toi pour accéder à ton espace' : 'Crée ton compte'}
         </p>
@@ -80,7 +84,7 @@ export default function LoginPage() {
             <input
               required type="email" autoComplete="email" value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand"
+              className="w-full field"
               placeholder="toi@exemple.fr"
             />
           </div>
@@ -90,17 +94,17 @@ export default function LoginPage() {
               required type="password" minLength={6}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password} onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand"
+              className="w-full field"
               placeholder="••••••••"
             />
           </div>
 
-          {error && <p className="text-red-400 text-xs leading-relaxed">{error}</p>}
-          {info && <p className="text-green-400 text-xs leading-relaxed">{info}</p>}
+          {error && <p className="text-red-400 text-xs leading-relaxed animate-pop-in">{error}</p>}
+          {info && <p className="text-green-400 text-xs leading-relaxed animate-pop-in">{info}</p>}
 
           <button
             type="submit" disabled={loading}
-            className="w-full bg-brand hover:bg-brand-hover text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="btn-primary w-full py-3"
           >
             {loading ? 'Un instant...' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
           </button>

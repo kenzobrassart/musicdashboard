@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
+import Logo from '@/components/ui/Logo'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -19,8 +20,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-primary">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-brand border-t-transparent animate-spin" />
+        <div className="flex flex-col items-center gap-3 animate-fade-in-up">
+          <Logo size={36} className="animate-soft-pulse" />
           <p className="text-text-muted text-sm">Chargement...</p>
         </div>
       </div>

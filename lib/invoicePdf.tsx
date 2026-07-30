@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
-import type { Facture, Client, ProfilEmetteur } from '@/lib/types'
+import type { Facture, Contact, ProfilEmetteur } from '@/lib/types'
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: 'Helvetica', color: '#141212' },
@@ -37,7 +37,7 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('fr-FR')
 }
 
-export function InvoiceDocument({ facture, client, profil }: { facture: Facture; client: Client | null; profil: ProfilEmetteur }) {
+export function InvoiceDocument({ facture, contact, profil }: { facture: Facture; contact: Contact | null; profil: ProfilEmetteur }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -70,10 +70,10 @@ export function InvoiceDocument({ facture, client, profil }: { facture: Facture;
           </View>
           <View style={styles.block}>
             <Text style={styles.blockLabel}>Client</Text>
-            <Text style={styles.blockText}>{facture.clientNom}</Text>
-            {client?.adresse && <Text style={styles.blockText}>{client.adresse}</Text>}
-            {client?.siret && <Text style={styles.blockText}>SIRET {client.siret}</Text>}
-            {client?.email && <Text style={styles.blockText}>{client.email}</Text>}
+            <Text style={styles.blockText}>{facture.contactNom}</Text>
+            {contact?.adresse && <Text style={styles.blockText}>{contact.adresse}</Text>}
+            {contact?.siret && <Text style={styles.blockText}>SIRET {contact.siret}</Text>}
+            {contact?.email && <Text style={styles.blockText}>{contact.email}</Text>}
           </View>
         </View>
 
@@ -122,6 +122,6 @@ export function InvoiceDocument({ facture, client, profil }: { facture: Facture;
   )
 }
 
-export async function generateInvoicePdfBlob(facture: Facture, client: Client | null, profil: ProfilEmetteur) {
-  return pdf(<InvoiceDocument facture={facture} client={client} profil={profil} />).toBlob()
+export async function generateInvoicePdfBlob(facture: Facture, contact: Contact | null, profil: ProfilEmetteur) {
+  return pdf(<InvoiceDocument facture={facture} contact={contact} profil={profil} />).toBlob()
 }

@@ -83,23 +83,23 @@ export default function OperationsModule() {
           <div><p className="text-text-muted text-xs">Dépenses</p><p className="text-red-400 font-bold text-lg tabular-nums">−{fmt(depenses)}</p></div>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExportCsv} disabled={operations.length === 0} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors disabled:opacity-40">
+          <button onClick={handleExportCsv} disabled={operations.length === 0} className="btn-secondary">
             <Download size={16} /> CSV
           </button>
-          <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+          <button onClick={openNew} className="btn-primary">
             <Plus size={16} /> Ajouter une ligne
           </button>
         </div>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-3">
+        <form onSubmit={handleSubmit} className="card-glass p-5 space-y-3 animate-fade-in-up">
           <h3 className="font-semibold text-sm">{editId ? 'Modifier la ligne' : 'Nouvelle ligne'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-text-muted block mb-1">Type *</label>
               <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeOperation, categorie: '' }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+                className="w-full field">
                 <option value="revenu">Revenu</option>
                 <option value="depense">Dépense</option>
               </select>
@@ -107,28 +107,28 @@ export default function OperationsModule() {
             <div>
               <label className="text-xs text-text-muted block mb-1">Date *</label>
               <input required type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+                className="w-full field" />
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Catégorie</label>
               <input list="cat-options" value={form.categorie} onChange={(e) => setForm((f) => ({ ...f, categorie: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Ex: Studio" />
+                className="w-full field" placeholder="Ex: Studio" />
               <datalist id="cat-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Montant (€) *</label>
               <input required type="number" step="0.01" min="0" value={form.montant} onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="0.00" />
+                className="w-full field" placeholder="0.00" />
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs text-text-muted block mb-1">Description</label>
               <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Ex: Avance Because" />
+                className="w-full field" placeholder="Ex: Avance Because" />
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg border border-bg-border hover:bg-bg-card transition-colors">Annuler</button>
-            <button type="submit" disabled={saving} className="text-sm bg-brand text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Annuler</button>
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? 'Enregistrement...' : editId ? 'Enregistrer' : 'Ajouter'}
             </button>
           </div>
@@ -138,7 +138,7 @@ export default function OperationsModule() {
       {operations.length === 0 && !showForm && (
         <div className="text-center py-16 text-text-muted">
           <Wallet size={40} className="mx-auto mb-3 text-text-faint" />
-          <p className="font-medium">Aucune opération enregistrée</p>
+          <p className="font-medium">Aucune opération enregistrée 💸</p>
           <p className="text-sm mt-1">Avances, achats de matériel, sync... ajoutez votre première ligne.</p>
         </div>
       )}
@@ -147,7 +147,7 @@ export default function OperationsModule() {
         {sorted.map((o) => {
           const docs = docsFor(o)
           return (
-            <div key={o.id} className={clsx('bg-bg-card border border-bg-border rounded-xl p-4 flex items-center justify-between gap-3', o.exclu && 'opacity-50')}>
+            <div key={o.id} className={clsx('card-glass p-4 flex items-center justify-between gap-3 transition-all duration-150 hover:-translate-y-0.5', o.exclu && 'opacity-50')}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-sm truncate">{o.description || o.categorie || '—'}</p>
@@ -162,13 +162,13 @@ export default function OperationsModule() {
                   {o.type === 'revenu' ? '+' : '−'}{fmt(o.montant)}
                 </span>
                 <button onClick={() => user && updateOperation(user.uid, o.id, { exclu: !o.exclu })} title={o.exclu ? 'Réintégrer' : 'Exclure des stats'}
-                  className="text-text-faint hover:text-text-primary transition-colors p-1">
+                  className="btn-ghost-icon hover:text-text-primary p-1">
                   {o.exclu ? <Eye size={14} /> : <EyeOff size={14} />}
                 </button>
-                <button onClick={() => openEdit(o)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={14} /></button>
+                <button onClick={() => openEdit(o)} className="btn-ghost-icon hover:text-brand p-1"><Pencil size={14} /></button>
                 <button
                   onClick={() => { if (user && confirm('Supprimer cette ligne ?')) deleteOperation(user.uid, o.id) }}
-                  className="text-text-faint hover:text-red-400 transition-colors p-1"><Trash2 size={15} /></button>
+                  className="btn-ghost-icon hover:text-red-400 p-1"><Trash2 size={15} /></button>
               </div>
             </div>
           )

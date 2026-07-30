@@ -42,7 +42,7 @@ export default function FiscaliteModule() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-4">
+      <div className="card-glass p-5 space-y-4">
         <h3 className="font-semibold text-sm">Paramètres URSSAF (micro-entrepreneur)</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
@@ -50,7 +50,7 @@ export default function FiscaliteModule() {
             <select value={fisca.regime} onChange={(e) => {
               const r = e.target.value as FiscaSettings['regime']
               update({ regime: r, taux: TAUX_URSSAF[r] })
-            }} className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+            }} className="w-full field">
               <option value="25.6">BNC — 25,6 %</option>
               <option value="21.2">BNC — 21,2 %</option>
               <option value="23.2">BIC service — 23,2 %</option>
@@ -60,22 +60,22 @@ export default function FiscaliteModule() {
           <div>
             <label className="text-xs text-text-muted block mb-1">Taux cotisations (%)</label>
             <input type="number" step="0.1" value={fisca.taux} onChange={(e) => update({ taux: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+              className="w-full field" />
           </div>
           <div>
             <label className="text-xs text-text-muted block mb-1">CFP (%)</label>
             <input type="number" step="0.1" value={fisca.cfp} onChange={(e) => update({ cfp: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+              className="w-full field" />
           </div>
           <div>
             <label className="text-xs text-text-muted block mb-1">Versement libératoire IR (%)</label>
             <input type="number" step="0.1" value={fisca.vl} onChange={(e) => update({ vl: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+              className="w-full field" />
           </div>
           <div>
             <label className="text-xs text-text-muted block mb-1">Abattement ACRE</label>
             <select value={fisca.acre} onChange={(e) => update({ acre: parseFloat(e.target.value) })}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+              className="w-full field">
               <option value="1">Taux plein</option>
               <option value="0.5">ACRE — 50 %</option>
             </select>
@@ -83,7 +83,7 @@ export default function FiscaliteModule() {
           <div>
             <label className="text-xs text-text-muted block mb-1">Année</label>
             <select value={anneeSel} onChange={(e) => update({ annee: e.target.value })}
-              className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+              className="w-full field">
               <option value="">Toutes</option>
               {annees.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
@@ -124,7 +124,7 @@ export default function FiscaliteModule() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.mois} className="border-b border-bg-border/50">
+                <tr key={r.mois} className="border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]">
                   <td className="py-2.5 px-2 font-medium">{fmtMois(r.mois)}</td>
                   <td className="py-2.5 px-2 text-right tabular-nums text-text-muted">{r.cachets ? fmt(r.cachets) : '—'}</td>
                   <td className="py-2.5 px-2 text-right tabular-nums text-text-muted">{r.autres ? fmt(r.autres) : '—'}</td>

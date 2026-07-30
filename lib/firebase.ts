@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, getFirestore } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
 
@@ -12,9 +12,18 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
+const alreadyInitialized = getApps().length > 0
+const app = alreadyInitialized ? getApps()[0] : initializeApp(firebaseConfig)
 
-export const db = getFirestore(app)
+// ignoreUndefinedProperties : plusieurs formulaires écrivent des champs optionnels
+// à `undefined` selon le contexte (ex. `son`/`categorie` d'une facture selon sa
+// nature) — sans ce réglage, Firestore rejette l'écriture entière au lieu
+// d'omettre simplement le champ. initializeFirestore() ne peut être appelé
+// qu'une fois par instance d'app, d'où la réutilisation via getFirestore()
+// si l'app existait déjà (hot-reload en dev).
+export const db = alreadyInitialized
+  ? getFirestore(app)
+  : initializeFirestore(app, { ignoreUndefinedProperties: true })
 export const auth = getAuth(app)
 export const storage = getStorage(app)
 export default app

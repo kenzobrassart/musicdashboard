@@ -2,23 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from './useAuth'
-import { subscribeClients } from '@/lib/firestore/clients'
-import type { Client } from '@/lib/types'
+import { subscribeContacts } from '@/lib/firestore/contacts'
+import type { Contact } from '@/lib/types'
 
-export function useClients() {
+export function useContacts() {
   const { user } = useAuth()
-  const [clients, setClients] = useState<Client[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
-    const unsub = subscribeClients(user.uid, (data) => {
-      setClients(data)
+    const unsub = subscribeContacts(user.uid, (data) => {
+      setContacts(data)
       setLoading(false)
     }, (e) => { setError(e.message); setLoading(false) })
     return unsub
   }, [user])
 
-  return { clients, loading, error }
+  return { contacts, loading, error }
 }
