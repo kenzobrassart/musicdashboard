@@ -9,6 +9,7 @@ import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from 
 import { fmtSize } from '@/lib/calc'
 import { Upload, Trash2, FileText, FileSignature, ClipboardList, File as FileIcon } from 'lucide-react'
 import { clsx } from 'clsx'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { TypeDocument } from '@/lib/types'
 
 const TYPES: TypeDocument[] = ['Facture', 'Contrat', 'Bon de commande', 'Autre']
@@ -16,7 +17,7 @@ const ICONS: Record<TypeDocument, typeof FileText> = { Facture: FileText, Contra
 
 export default function DocumentsModule() {
   const { user } = useAuth()
-  const { documents, loading } = useDocuments()
+  const { documents, loading, error } = useDocuments()
   const { cachets } = useCachets()
   const { operations } = useOperations()
   const [uploading, setUploading] = useState(false)
@@ -66,6 +67,7 @@ export default function DocumentsModule() {
   const nonRattaches = documents.filter((d) => !d.lien).length
   const sansDoc = cachets.filter((c) => !documents.some((d) => d.lien?.kind === 'cachet' && d.lien.ref === c.id)).map((c) => c.son)
 
+  if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (

@@ -9,11 +9,11 @@ import type { DocumentFichier } from '@/lib/types'
 
 const COL = 'documents'
 
-export function subscribeDocuments(uid: string, cb: (documents: DocumentFichier[]) => void): Unsubscribe {
+export function subscribeDocuments(uid: string, cb: (documents: DocumentFichier[]) => void, onError?: (e: Error) => void): Unsubscribe {
   const q = query(collection(db, 'users', uid, COL), orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DocumentFichier)))
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function uploadDocumentFile(uid: string, file: File | Blob, fileName: string) {

@@ -12,6 +12,7 @@ import { addCachet, updateCachet } from '@/lib/firestore/cachets'
 import { addOperation, updateOperation } from '@/lib/firestore/operations'
 import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from '@/lib/firestore/documents'
 import { fmt } from '@/lib/calc'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import { Plus, Trash2, Pencil, FileText, Download, Settings } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Facture, StatutFacture, NatureFacture, LigneFacture } from '@/lib/types'
@@ -36,8 +37,8 @@ const emptyForm = () => ({
 
 export default function FacturesModule() {
   const { user } = useAuth()
-  const { factures, loading: l1 } = useFactures()
-  const { clients, loading: l2 } = useClients()
+  const { factures, loading: l1, error: e1 } = useFactures()
+  const { clients, loading: l2, error: e2 } = useClients()
   const { documents } = useDocuments()
   const { profil, update: updateProfilSettings } = useProfil()
   const [showForm, setShowForm] = useState(false)
@@ -196,6 +197,9 @@ export default function FacturesModule() {
   }
 
   const loading = l1 || l2
+  const error = e1 || e2
+
+  if (error) return <ErrorBanner message={error} />
 
   return (
     <div className="space-y-4">

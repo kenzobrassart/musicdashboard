@@ -8,6 +8,7 @@ import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/
 import { fmt } from '@/lib/calc'
 import { Plus, Trash2, Pencil, Wallet, FileText, EyeOff, Eye } from 'lucide-react'
 import { clsx } from 'clsx'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Operation, TypeOperation } from '@/lib/types'
 
 const emptyForm = { date: new Date().toISOString().split('T')[0], type: 'revenu' as TypeOperation, categorie: '', description: '', montant: '' }
@@ -17,7 +18,7 @@ const CATEGORIES_DEPENSE = ['Studio', 'Matériel', 'Logiciel / plugin', 'Marketi
 
 export default function OperationsModule() {
   const { user } = useAuth()
-  const { operations, loading } = useOperations()
+  const { operations, loading, error } = useOperations()
   const { documents } = useDocuments()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -62,6 +63,7 @@ export default function OperationsModule() {
   const sorted = [...operations].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   const categories = form.type === 'revenu' ? CATEGORIES_REVENU : CATEGORIES_DEPENSE
 
+  if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (

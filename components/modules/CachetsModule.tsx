@@ -8,6 +8,7 @@ import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
 import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye } from 'lucide-react'
 import { clsx } from 'clsx'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Cachet, StatutDate } from '@/lib/types'
 
 const emptyForm = {
@@ -19,7 +20,7 @@ type SortKey = 'date' | 'artiste' | 'son' | 'brut' | 'part' | 'statut' | 'paieme
 
 export default function CachetsModule() {
   const { user } = useAuth()
-  const { cachets, loading } = useCachets()
+  const { cachets, loading, error } = useCachets()
   const { documents } = useDocuments()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -113,6 +114,7 @@ export default function CachetsModule() {
 
   const arrow = (k: SortKey) => (sort.key === k ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')
 
+  if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (

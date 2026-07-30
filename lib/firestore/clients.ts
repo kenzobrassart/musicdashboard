@@ -8,11 +8,11 @@ import type { Client } from '@/lib/types'
 
 const COL = 'clients'
 
-export function subscribeClients(uid: string, cb: (clients: Client[]) => void): Unsubscribe {
+export function subscribeClients(uid: string, cb: (clients: Client[]) => void, onError?: (e: Error) => void): Unsubscribe {
   const q = query(collection(db, 'users', uid, COL), orderBy('nom', 'asc'))
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)))
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function addClient(uid: string, data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) {

@@ -7,11 +7,12 @@ import { useFisca } from '@/hooks/useFisca'
 import { encaissementsParMois, ligneFiscale, part, fmt, fmtMois } from '@/lib/calc'
 import { TAUX_URSSAF, type FiscaSettings } from '@/lib/types'
 import { AlertTriangle } from 'lucide-react'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 
 export default function FiscaliteModule() {
-  const { cachets, loading: l1 } = useCachets()
-  const { operations, loading: l2 } = useOperations()
-  const { fisca, loading: l3, update } = useFisca()
+  const { cachets, loading: l1, error: e1 } = useCachets()
+  const { operations, loading: l2, error: e2 } = useOperations()
+  const { fisca, loading: l3, error: e3, update } = useFisca()
 
   const map = useMemo(() => encaissementsParMois(cachets, operations, false), [cachets, operations])
   const moisTous = useMemo(() => Object.keys(map).sort(), [map])
@@ -33,6 +34,8 @@ export default function FiscaliteModule() {
   const orphelins = cachets.filter((c) => c.paye && !c.datePaiement)
   const totalOrphelins = orphelins.reduce((s, c) => s + part(c), 0)
 
+  const error = e1 || e2 || e3
+  if (error) return <ErrorBanner message={error} />
   if (l1 || l2 || l3) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   const totalPct = (fisca.taux * fisca.acre + fisca.cfp + fisca.vl).toFixed(2).replace('.', ',')

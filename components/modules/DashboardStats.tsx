@@ -7,12 +7,15 @@ import { useFactures } from '@/hooks/useFactures'
 import { brut, part, qte, fmt } from '@/lib/calc'
 import { TrendingUp, TrendingDown, Wallet, Music2, FileText, Clock } from 'lucide-react'
 import { clsx } from 'clsx'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 
 export default function DashboardStats() {
-  const { cachets, loading: l1 } = useCachets()
-  const { operations, loading: l2 } = useOperations()
-  const { factures, loading: l3 } = useFactures()
+  const { cachets, loading: l1, error: e1 } = useCachets()
+  const { operations, loading: l2, error: e2 } = useOperations()
+  const { factures, loading: l3, error: e3 } = useFactures()
 
+  const error = e1 || e2 || e3
+  if (error) return <ErrorBanner message={error} />
   if (l1 || l2 || l3) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   const brutTotal = cachets.reduce((s, c) => s + brut(c), 0)

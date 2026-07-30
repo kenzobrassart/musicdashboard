@@ -5,13 +5,14 @@ import { useClients } from '@/hooks/useClients'
 import { useAuth } from '@/hooks/useAuth'
 import { addClient, updateClient, deleteClient } from '@/lib/firestore/clients'
 import { UserPlus, Trash2, Pencil, Building2 } from 'lucide-react'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Client } from '@/lib/types'
 
 const emptyForm = { nom: '', contact: '', email: '', telephone: '', adresse: '', siret: '', tvaIntracom: '', notes: '' }
 
 export default function ClientsModule() {
   const { user } = useAuth()
-  const { clients, loading } = useClients()
+  const { clients, loading, error } = useClients()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -49,6 +50,7 @@ export default function ClientsModule() {
     await deleteClient(user.uid, id)
   }
 
+  if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (

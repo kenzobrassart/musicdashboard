@@ -9,13 +9,14 @@ export function useFisca() {
   const { user } = useAuth()
   const [fisca, setFisca] = useState<FiscaSettings>(FISCA_DEFAULT)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
     const unsub = subscribeFisca(user.uid, (data) => {
       setFisca(data)
       setLoading(false)
-    })
+    }, (e) => { setError(e.message); setLoading(false) })
     return unsub
   }, [user])
 
@@ -24,5 +25,5 @@ export function useFisca() {
     await saveFisca(user.uid, patch)
   }
 
-  return { fisca, loading, update }
+  return { fisca, loading, error, update }
 }
