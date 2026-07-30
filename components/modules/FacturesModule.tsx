@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useFactures } from '@/hooks/useFactures'
 import { useContacts } from '@/hooks/useContacts'
 import { useDocuments } from '@/hooks/useDocuments'
@@ -10,14 +11,14 @@ import { useQuickActionStore } from '@/lib/store'
 import { addFacture, updateFacture, deleteFacture, genNumeroFacture } from '@/lib/firestore/factures'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
-import { ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
+import { addContact, ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
 import { useCachets } from '@/hooks/useCachets'
 import { useOperations } from '@/hooks/useOperations'
 import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from '@/lib/firestore/documents'
 import { fmt } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
 import ErrorBanner from '@/components/ui/ErrorBanner'
-import { Plus, Trash2, Pencil, FileText, Download, Settings, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, FileText, Download, Settings, X, UserPlus, MapPin } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Facture, StatutFacture, NatureFacture, LigneFacture, Contact } from '@/lib/types'
 
@@ -37,7 +38,7 @@ const emptyLigne = (): LigneFacture => ({ description: '', quantite: 1, prixUnit
 const emptyForm = () => ({
   contactNom: '', nature: 'cachet' as NatureFacture, son: '', coauteurs: [] as string[], categorie: '',
   lignes: [emptyLigne()], mentionTva: false, tva: '20',
-  dateEmission: todayIso(), dateEcheance: plus30(), notes: '',
+  dateEmission: todayIso(), dateEcheance: plus30(), notes: '', referenceCommande: '',
 })
 
 export default function FacturesModule() {
@@ -47,14 +48,15 @@ export default function FacturesModule() {
   const { documents } = useDocuments()
   const { cachets } = useCachets()
   const { operations } = useOperations()
-  const { profil, update: updateProfilSettings } = useProfil()
+  const { profil } = useProfil()
   const [showForm, setShowForm] = useState(false)
-  const [showProfil, setShowProfil] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [coauteurDraft, setCoauteurDraft] = useState('')
-  const [profilForm, setProfilForm] = useState(profil)
+  const [showNewContact, setShowNewContact] = useState(false)
+  const [newContactForm, setNewContactForm] = useState({ adresse: '', siret: '', email: '', telephone: '' })
+  const [creatingContact, setCreatingContact] = useState(false)
 
   const totalEnAttente = factures.filter((f) => f.statut === 'envoyee' || f.statut === 'en_retard').reduce((s, f) => s + f.montantTTC, 0)
 
@@ -62,7 +64,25 @@ export default function FacturesModule() {
     setEditId(null)
     setForm(emptyForm())
     setCoauteurDraft('')
+    setShowNewContact(false)
+    setNewContactForm({ adresse: '', siret: '', email: '', telephone: '' })
     setShowForm(true)
+  }
+
+  // Contact déjà répertorié qui correspond exactement au nom saisi — sert à
+  // afficher un aperçu (adresse, SIRET...) et à remplir la facture avec.
+  const matchedContact = contacts.find((c) => c.nom.trim().toLowerCase() === form.contactNom.trim().toLowerCase())
+
+  async function handleCreateContact() {
+    if (!user || !form.contactNom.trim()) { alert('Renseigne d’abord le nom du contact ci-dessus.'); return }
+    setCreatingContact(true)
+    try {
+      await addContact(user.uid, { nom: form.contactNom.trim(), ...newContactForm })
+      setShowNewContact(false)
+      setNewContactForm({ adresse: '', siret: '', email: '', telephone: '' })
+    } finally {
+      setCreatingContact(false)
+    }
   }
 
   const pendingAction = useQuickActionStore((s) => s.pending)
@@ -79,6 +99,7 @@ export default function FacturesModule() {
       lignes: f.lignes.length ? f.lignes.map((l) => ({ ...l })) : [emptyLigne()],
       mentionTva: f.mentionTva, tva: String(f.tva || 20),
       dateEmission: f.dateEmission, dateEcheance: f.dateEcheance, notes: f.notes || '',
+      referenceCommande: f.referenceCommande || '',
     })
     setCoauteurDraft('')
     setShowForm(true)
@@ -137,6 +158,7 @@ export default function FacturesModule() {
         categorie: form.nature === 'autre' ? form.categorie.trim() : undefined,
         lignes, montantHT, tva: parseFloat(form.tva) || 0, montantTTC, mentionTva: form.mentionTva,
         dateEmission: form.dateEmission, dateEcheance: form.dateEcheance, notes: form.notes.trim(),
+        referenceCommande: form.referenceCommande.trim() || undefined,
       }
 
       let factureId: string = editId ?? ''
@@ -245,13 +267,6 @@ export default function FacturesModule() {
     if (f.documentId) await deleteDocument(user.uid, f.documentId)
   }
 
-  async function saveProfilForm(e: React.FormEvent) {
-    e.preventDefault()
-    if (!user) return
-    await updateProfilSettings(profilForm)
-    setShowProfil(false)
-  }
-
   const loading = l1 || l2
   const error = e1 || e2
 
@@ -283,39 +298,19 @@ export default function FacturesModule() {
           <button onClick={handleExportCsv} disabled={factures.length === 0} className="btn-secondary">
             <Download size={16} /> CSV
           </button>
-          <button onClick={() => { setProfilForm(profil); setShowProfil(!showProfil) }} className="btn-secondary">
-            <Settings size={16} /> Mes informations
-          </button>
+          <Link href="/parametres" className="btn-secondary">
+            <Settings size={16} /> Paramètres
+          </Link>
           <button onClick={openNew} className="btn-primary">
             <Plus size={16} /> Nouvelle facture
           </button>
         </div>
       </div>
 
-      {showProfil && (
-        <form onSubmit={saveProfilForm} className="card-glass p-5 space-y-3 animate-fade-in-up">
-          <h3 className="font-semibold text-sm">Mes informations (émetteur des factures)</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><label className="text-xs text-text-muted block mb-1">Nom / activité *</label>
-              <input required value={profilForm.nom} onChange={(e) => setProfilForm((p) => ({ ...p, nom: e.target.value }))} className="w-full field" /></div>
-            <div><label className="text-xs text-text-muted block mb-1">SIRET</label>
-              <input value={profilForm.siret} onChange={(e) => setProfilForm((p) => ({ ...p, siret: e.target.value }))} className="w-full field" /></div>
-            <div className="sm:col-span-2"><label className="text-xs text-text-muted block mb-1">Adresse</label>
-              <input value={profilForm.adresse} onChange={(e) => setProfilForm((p) => ({ ...p, adresse: e.target.value }))} className="w-full field" /></div>
-            <div><label className="text-xs text-text-muted block mb-1">Email</label>
-              <input type="email" value={profilForm.email} onChange={(e) => setProfilForm((p) => ({ ...p, email: e.target.value }))} className="w-full field" /></div>
-            <div><label className="text-xs text-text-muted block mb-1">Téléphone</label>
-              <input value={profilForm.telephone} onChange={(e) => setProfilForm((p) => ({ ...p, telephone: e.target.value }))} className="w-full field" /></div>
-            <div><label className="text-xs text-text-muted block mb-1">IBAN</label>
-              <input value={profilForm.iban} onChange={(e) => setProfilForm((p) => ({ ...p, iban: e.target.value }))} className="w-full field" /></div>
-            <div><label className="text-xs text-text-muted block mb-1">BIC</label>
-              <input value={profilForm.bic} onChange={(e) => setProfilForm((p) => ({ ...p, bic: e.target.value }))} className="w-full field" /></div>
-          </div>
-          <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={() => setShowProfil(false)} className="btn-secondary">Annuler</button>
-            <button type="submit" className="btn-primary">Enregistrer</button>
-          </div>
-        </form>
+      {!profil.nom && (
+        <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-xl p-4 text-sm text-yellow-200">
+          Complète tes <Link href="/parametres" className="underline font-medium">informations d&apos;émetteur</Link> (nom, SIRET, adresse...) avant de créer ta première facture — elles apparaissent sur le PDF.
+        </div>
       )}
 
       {showForm && (
@@ -323,11 +318,48 @@ export default function FacturesModule() {
           <h3 className="font-semibold text-sm">{editId ? 'Modifier la facture' : 'Nouvelle facture'}</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+            <div className="sm:col-span-2">
               <label className="text-xs text-text-muted block mb-1">Contact *</label>
-              <input required list="contacts-suggestions" value={form.contactNom} onChange={(e) => setForm((f) => ({ ...f, contactNom: e.target.value }))}
-                className="w-full field" placeholder="Nom du client, artiste ou label" />
-              <p className="text-text-faint text-[11px] mt-1">Nouveau nom ? Il sera ajouté à tes contacts automatiquement.</p>
+              <div className="flex gap-2">
+                <input required list="contacts-suggestions" value={form.contactNom}
+                  onChange={(e) => { setForm((f) => ({ ...f, contactNom: e.target.value })); setShowNewContact(false) }}
+                  className="flex-1 field" placeholder="Nom du client, artiste ou label" />
+                <button type="button" onClick={() => setShowNewContact((v) => !v)} className="btn-secondary px-3 whitespace-nowrap">
+                  <UserPlus size={16} /> Nouveau contact
+                </button>
+              </div>
+
+              {matchedContact && !showNewContact && (
+                <div className="mt-2 flex items-start gap-2 text-xs text-text-muted bg-white/[0.03] rounded-lg px-3 py-2 animate-fade-in-up">
+                  <MapPin size={13} className="shrink-0 mt-0.5 text-brand" />
+                  <span>
+                    {[matchedContact.adresse, matchedContact.siret && `SIRET ${matchedContact.siret}`, matchedContact.email].filter(Boolean).join(' · ') || 'Contact connu — aucune coordonnée renseignée pour l’instant.'}
+                    {' '}<Link href="/contacts" className="text-brand hover:underline">Modifier</Link>
+                  </span>
+                </div>
+              )}
+              {!matchedContact && form.contactNom.trim() && !showNewContact && (
+                <p className="text-text-faint text-[11px] mt-1">Nouveau nom : un contact vide sera créé automatiquement, ou clique « Nouveau contact » pour renseigner ses coordonnées tout de suite.</p>
+              )}
+
+              {showNewContact && (
+                <div className="mt-2 card-glass p-3 space-y-2 animate-fade-in-up">
+                  <p className="text-xs font-medium">Coordonnées de « {form.contactNom.trim() || '...'} »</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input value={newContactForm.adresse} onChange={(e) => setNewContactForm((p) => ({ ...p, adresse: e.target.value }))}
+                      className="field text-sm sm:col-span-2" placeholder="Adresse" />
+                    <input value={newContactForm.siret} onChange={(e) => setNewContactForm((p) => ({ ...p, siret: e.target.value }))}
+                      className="field text-sm" placeholder="SIRET" />
+                    <input type="email" value={newContactForm.email} onChange={(e) => setNewContactForm((p) => ({ ...p, email: e.target.value }))}
+                      className="field text-sm" placeholder="Email" />
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="button" onClick={handleCreateContact} disabled={creatingContact} className="btn-primary text-xs px-3 py-1.5">
+                      {creatingContact ? 'Création...' : 'Créer le contact'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Nature *</label>
@@ -419,10 +451,17 @@ export default function FacturesModule() {
             )}
           </div>
 
-          <div>
-            <label className="text-xs text-text-muted block mb-1">Notes</label>
-            <input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              className="w-full field" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Référence bon de commande</label>
+              <input value={form.referenceCommande} onChange={(e) => setForm((f) => ({ ...f, referenceCommande: e.target.value }))}
+                className="w-full field" placeholder="Optionnel" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Notes</label>
+              <input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                className="w-full field" />
+            </div>
           </div>
 
           <div className="bg-white/[0.03] rounded-xl p-3 text-sm flex gap-4 animate-fade-in-up">

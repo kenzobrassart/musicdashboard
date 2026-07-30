@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Music2, Wallet, FolderOpen, Landmark, BarChart3, FileText, Users } from 'lucide-react'
+import { LayoutDashboard, Music2, Wallet, FolderOpen, Landmark, BarChart3, FileText, Users, Settings } from 'lucide-react'
 import { clsx } from 'clsx'
 import Logo from '@/components/ui/Logo'
 
@@ -17,6 +17,10 @@ const nav = [
   { href: '/contacts', label: 'Contacts', icon: Users },
 ]
 
+const navSysteme = [
+  { href: '/parametres', label: 'Paramètres', icon: Settings },
+]
+
 export default function Sidebar() {
   const pathname = usePathname()
 
@@ -26,7 +30,7 @@ export default function Sidebar() {
         <Logo size={30} />
         <span className="font-bold text-lg tracking-tight">Studio Ops</span>
       </div>
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-1 flex-1">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
           return (
@@ -45,6 +49,27 @@ export default function Sidebar() {
                 'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-full bg-brand transition-all duration-200 ease-out',
                 active ? 'h-5 opacity-100' : 'h-0 opacity-0'
               )} />
+              <Icon size={18} className="transition-transform duration-200 ease-out group-hover:scale-110" />
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
+      <nav className="flex flex-col gap-1 pt-3 border-t border-white/[0.06]">
+        {navSysteme.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium',
+                'transition-all duration-200 ease-out',
+                active
+                  ? 'bg-brand/[0.12] text-brand'
+                  : 'text-text-muted hover:text-text-primary hover:bg-white/[0.05] hover:translate-x-0.5'
+              )}
+            >
               <Icon size={18} className="transition-transform duration-200 ease-out group-hover:scale-110" />
               {label}
             </Link>
