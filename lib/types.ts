@@ -13,7 +13,8 @@ export interface Cachet {
   paye: boolean
   datePaiement: string // 'YYYY-MM'
   dateStatut: StatutDate
-  exclu: boolean // exclu des statistiques (toujours compté en fiscalité/synthèse)
+  exclureStats: boolean // exclu des statistiques uniquement
+  exclureFiscal: boolean // exclu du calcul des cotisations URSSAF uniquement
   factureId?: string // facture liée si créée depuis l'outil de facturation
   contactId?: string
   createdAt: Date
@@ -30,7 +31,8 @@ export interface Operation {
   categorie: string
   description: string
   montant: number
-  exclu: boolean
+  exclureStats: boolean // exclu des statistiques uniquement
+  exclureFiscal: boolean // exclu du calcul des cotisations URSSAF uniquement
   factureId?: string
   contactId?: string
   createdAt: Date

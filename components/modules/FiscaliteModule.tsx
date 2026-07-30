@@ -14,7 +14,7 @@ export default function FiscaliteModule() {
   const { operations, loading: l2, error: e2 } = useOperations()
   const { fisca, loading: l3, error: e3, update } = useFisca()
 
-  const map = useMemo(() => encaissementsParMois(cachets, operations, false), [cachets, operations])
+  const map = useMemo(() => encaissementsParMois(cachets, operations, 'fiscal'), [cachets, operations])
   const moisTous = useMemo(() => Object.keys(map).sort(), [map])
   const annees = useMemo(() => [...new Set(moisTous.map((m) => m.slice(0, 4)))].sort(), [moisTous])
   const anneeSel = annees.includes(fisca.annee) ? fisca.annee : ''

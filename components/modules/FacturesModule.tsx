@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFactures } from '@/hooks/useFactures'
 import { useContacts } from '@/hooks/useContacts'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfil } from '@/hooks/useProfil'
+import { useQuickActionStore } from '@/lib/store'
 import { addFacture, updateFacture, deleteFacture, genNumeroFacture } from '@/lib/firestore/factures'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
@@ -63,6 +64,13 @@ export default function FacturesModule() {
     setCoauteurDraft('')
     setShowForm(true)
   }
+
+  const pendingAction = useQuickActionStore((s) => s.pending)
+  const consumeAction = useQuickActionStore((s) => s.consume)
+  useEffect(() => {
+    if (pendingAction === 'facture') { openNew(); consumeAction() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction])
 
   function openEdit(f: Facture) {
     setEditId(f.id)
@@ -166,14 +174,14 @@ export default function FacturesModule() {
           const cRef = await addCachet(user.uid, {
             date: '', artiste: contact.nom, son: form.son.trim(), quantite: 1, montant: montantHT,
             coauteurs: form.coauteurs, maPart: null, paye: false, datePaiement: '', dateStatut: 'manquante',
-            exclu: false, factureId, contactId: contact.id,
+            exclureStats: false, exclureFiscal: false, factureId, contactId: contact.id,
           })
           cachetId = cRef.id
         } else {
           const oRef = await addOperation(user.uid, {
             date: form.dateEmission, type: 'revenu', categorie: form.categorie.trim() || 'Facturation',
             description: lignes.map((l) => l.description).join(', '), montant: montantHT,
-            exclu: false, factureId, contactId: contact.id,
+            exclureStats: false, exclureFiscal: false, factureId, contactId: contact.id,
           })
           operationId = oRef.id
         }

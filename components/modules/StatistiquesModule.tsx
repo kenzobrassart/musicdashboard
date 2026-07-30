@@ -11,7 +11,7 @@ export default function StatistiquesModule() {
   const { cachets, loading: l1, error: e1 } = useCachets()
   const { operations, loading: l2, error: e2 } = useOperations()
 
-  const sc = useMemo(() => cachets.filter((c) => !c.exclu), [cachets])
+  const sc = useMemo(() => cachets.filter((c) => !c.exclureStats), [cachets])
 
   const parArtiste = useMemo(() => {
     const byArtiste: Record<string, { artiste: string; prods: number; brut: number; part: number; encaisse: number; attente: number }> = {}
@@ -34,13 +34,13 @@ export default function StatistiquesModule() {
   const coprods = sc.filter((c) => nbComp(c) > 1 || part(c) < brut(c)).length
 
   const monthly = useMemo(() => {
-    const map = encaissementsParMois(cachets, operations, true)
+    const map = encaissementsParMois(cachets, operations, 'stats')
     return Object.keys(map).sort().map((m) => ({ mois: fmtMois(m), total: map[m].cachets + map[m].autres }))
   }, [cachets, operations])
 
   const exclus = [
-    ...cachets.filter((c) => c.exclu).map((c) => `${c.son || '(sans nom)'} — ${fmt(part(c))}`),
-    ...operations.filter((o) => o.exclu).map((o) => `${o.description || o.categorie} — ${fmt(o.montant)}`),
+    ...cachets.filter((c) => c.exclureStats).map((c) => `${c.son || '(sans nom)'} — ${fmt(part(c))}`),
+    ...operations.filter((o) => o.exclureStats).map((o) => `${o.description || o.categorie} — ${fmt(o.montant)}`),
   ]
 
   const kpis = [
@@ -137,7 +137,7 @@ export default function StatistiquesModule() {
 
       {exclus.length > 0 && (
         <p className="text-text-faint text-xs">
-          {exclus.length} élément(s) exclu(s) des statistiques (toujours comptés dans la synthèse et la fiscalité) : {exclus.join(' · ')}
+          {exclus.length} élément(s) exclu(s) des statistiques (toujours comptés dans le solde ; voir Fiscalité pour l&apos;exclusion des déclarations) : {exclus.join(' · ')}
         </p>
       )}
     </div>

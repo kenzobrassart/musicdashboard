@@ -1,18 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useOperations } from '@/hooks/useOperations'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useAuth } from '@/hooks/useAuth'
+import { useQuickActionStore } from '@/lib/store'
 import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
 import { fmt } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
-import { Plus, Trash2, Pencil, Wallet, FileText, EyeOff, Eye, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, Wallet, FileText, EyeOff, Eye, Download, Landmark } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Operation, TypeOperation } from '@/lib/types'
 
-const emptyForm = { date: new Date().toISOString().split('T')[0], type: 'revenu' as TypeOperation, categorie: '', description: '', montant: '' }
+const emptyForm = {
+  date: new Date().toISOString().split('T')[0], type: 'revenu' as TypeOperation, categorie: '', description: '', montant: '',
+  exclureStats: false, exclureFiscal: false,
+}
 
 const CATEGORIES_REVENU = ['Avance sur contrat', 'Composition (film/pub)', 'Droits voisins', 'Sync / licensing', 'Autre']
 const CATEGORIES_DEPENSE = ['Studio', 'Matériel', 'Logiciel / plugin', 'Marketing', 'Formation', 'Autre']
@@ -39,9 +43,19 @@ export default function OperationsModule() {
     setShowForm(true)
   }
 
+  const pendingAction = useQuickActionStore((s) => s.pending)
+  const consumeAction = useQuickActionStore((s) => s.consume)
+  useEffect(() => {
+    if (pendingAction === 'operation') { openNew(); consumeAction() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction])
+
   function openEdit(o: Operation) {
     setEditId(o.id)
-    setForm({ date: o.date, type: o.type, categorie: o.categorie, description: o.description, montant: String(o.montant) })
+    setForm({
+      date: o.date, type: o.type, categorie: o.categorie, description: o.description, montant: String(o.montant),
+      exclureStats: o.exclureStats || false, exclureFiscal: o.exclureFiscal || false,
+    })
     setShowForm(true)
   }
 
@@ -51,7 +65,8 @@ export default function OperationsModule() {
     setSaving(true)
     const rec = {
       date: form.date, type: form.type, categorie: form.categorie.trim(),
-      description: form.description.trim(), montant: parseFloat(form.montant) || 0, exclu: false,
+      description: form.description.trim(), montant: parseFloat(form.montant) || 0,
+      exclureStats: form.exclureStats, exclureFiscal: form.exclureFiscal,
     }
     if (editId) await updateOperation(user.uid, editId, rec)
     else await addOperation(user.uid, rec)
@@ -126,6 +141,16 @@ export default function OperationsModule() {
                 className="w-full field" placeholder="Ex: Avance Because" />
             </div>
           </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.exclureStats} onChange={(e) => setForm((f) => ({ ...f, exclureStats: e.target.checked }))} />
+              Exclure des statistiques
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.exclureFiscal} onChange={(e) => setForm((f) => ({ ...f, exclureFiscal: e.target.checked }))} />
+              Exclure de la fiscalité (déclarations)
+            </label>
+          </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Annuler</button>
             <button type="submit" disabled={saving} className="btn-primary">
@@ -147,7 +172,7 @@ export default function OperationsModule() {
         {sorted.map((o) => {
           const docs = docsFor(o)
           return (
-            <div key={o.id} className={clsx('card-glass p-4 flex items-center justify-between gap-3 transition-all duration-150 hover:-translate-y-0.5', o.exclu && 'opacity-50')}>
+            <div key={o.id} className={clsx('card-glass p-4 flex items-center justify-between gap-3 transition-all duration-150 hover:-translate-y-0.5', (o.exclureStats || o.exclureFiscal) && 'opacity-50')}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-sm truncate">{o.description || o.categorie || '—'}</p>
@@ -161,9 +186,15 @@ export default function OperationsModule() {
                 <span className={clsx('font-bold tabular-nums text-sm', o.type === 'revenu' ? 'text-green-400' : 'text-red-400')}>
                   {o.type === 'revenu' ? '+' : '−'}{fmt(o.montant)}
                 </span>
-                <button onClick={() => user && updateOperation(user.uid, o.id, { exclu: !o.exclu })} title={o.exclu ? 'Réintégrer' : 'Exclure des stats'}
-                  className="btn-ghost-icon hover:text-text-primary p-1">
-                  {o.exclu ? <Eye size={14} /> : <EyeOff size={14} />}
+                <button onClick={() => user && updateOperation(user.uid, o.id, { exclureStats: !o.exclureStats })}
+                  title={o.exclureStats ? 'Réintégrer dans les statistiques' : 'Exclure des statistiques'}
+                  className={clsx('btn-ghost-icon p-1', o.exclureStats ? 'text-yellow-400' : 'hover:text-text-primary')}>
+                  {o.exclureStats ? <Eye size={14} /> : <EyeOff size={14} />}
+                </button>
+                <button onClick={() => user && updateOperation(user.uid, o.id, { exclureFiscal: !o.exclureFiscal })}
+                  title={o.exclureFiscal ? 'Réintégrer dans la fiscalité' : 'Exclure de la fiscalité (déclarations)'}
+                  className={clsx('btn-ghost-icon p-1', o.exclureFiscal ? 'text-yellow-400' : 'hover:text-text-primary')}>
+                  <Landmark size={14} className={o.exclureFiscal ? 'opacity-40' : ''} />
                 </button>
                 <button onClick={() => openEdit(o)} className="btn-ghost-icon hover:text-brand p-1"><Pencil size={14} /></button>
                 <button

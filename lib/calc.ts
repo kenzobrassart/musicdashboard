@@ -52,19 +52,26 @@ export function ligneFiscale(ca: number, fx: FiscaSettings): LigneFiscale {
 }
 
 // Regroupe les encaissements par mois (YYYY-MM) : cachets payés par datePaiement,
-// autres revenus par leur date. pourStats=true exclut les lignes marquées "exclu".
+// autres revenus par leur date.
+// mode='stats'  → exclut les lignes marquées "Exclure des statistiques"
+// mode='fiscal' → exclut les lignes marquées "Exclure de la fiscalité"
+// mode='brut'   → aucune exclusion (solde réel)
 export function encaissementsParMois(
   cachets: Cachet[],
   operations: Operation[],
-  pourStats: boolean
+  mode: 'stats' | 'fiscal' | 'brut'
 ): Record<string, { cachets: number; autres: number }> {
   const map: Record<string, { cachets: number; autres: number }> = {}
   const add = (m: string, champ: 'cachets' | 'autres', v: number) => {
     if (!map[m]) map[m] = { cachets: 0, autres: 0 }
     map[m][champ] += v
   }
-  const cs = pourStats ? cachets.filter((c) => !c.exclu) : cachets
-  const os = pourStats ? operations.filter((o) => !o.exclu) : operations
+  const cs = mode === 'stats' ? cachets.filter((c) => !c.exclureStats)
+    : mode === 'fiscal' ? cachets.filter((c) => !c.exclureFiscal)
+    : cachets
+  const os = mode === 'stats' ? operations.filter((o) => !o.exclureStats)
+    : mode === 'fiscal' ? operations.filter((o) => !o.exclureFiscal)
+    : operations
   cs.forEach((c) => {
     if (c.paye && c.datePaiement) add(c.datePaiement, 'cachets', part(c))
   })
