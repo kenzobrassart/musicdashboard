@@ -6,7 +6,7 @@ import { useDocuments } from '@/hooks/useDocuments'
 import { useContacts } from '@/hooks/useContacts'
 import { useAuth } from '@/hooks/useAuth'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
-import { ensureContact } from '@/lib/firestore/contacts'
+import { ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
 import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
 import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X } from 'lucide-react'
@@ -75,9 +75,26 @@ export default function CachetsModule() {
     if (!user || !form.son.trim() || form.montant === '') { alert('Renseignez au moins le son et le cachet total.'); return }
     setSaving(true)
     const quantite = Math.max(1, parseInt(form.quantite, 10) || 1)
+    const artiste = form.artiste.trim()
+
+    // Le répertoire de contacts se remplit tout seul avec l'artiste saisi. Si le
+    // cachet est déjà lié à un contact et que le nom a changé, on renomme ce
+    // contact partout plutôt que d'en créer un nouveau — synchro dans les deux sens.
+    let contactId: string | undefined
+    if (artiste) {
+      const current = editId ? cachets.find((c) => c.id === editId) : undefined
+      const linkedContact = current?.contactId ? contacts.find((c) => c.id === current.contactId) : undefined
+      if (linkedContact && linkedContact.nom.trim().toLowerCase() !== artiste.toLowerCase()) {
+        await renameContactEverywhere(user.uid, linkedContact.id, artiste)
+        contactId = linkedContact.id
+      } else {
+        contactId = await ensureContact(user.uid, artiste, contacts)
+      }
+    }
+
     const rec = {
       date: form.date,
-      artiste: form.artiste.trim(),
+      artiste,
       son: form.son.trim(),
       quantite,
       montant: parseFloat(form.montant) || 0,
@@ -87,14 +104,13 @@ export default function CachetsModule() {
       datePaiement: form.datePaiement,
       dateStatut: form.date ? form.dateStatut : ('manquante' as StatutDate),
       exclu: false,
+      ...(contactId ? { contactId } : {}),
     }
     if (editId) {
       await updateCachet(user.uid, editId, rec)
     } else {
       await addCachet(user.uid, rec)
     }
-    // Le répertoire de contacts se remplit tout seul avec l'artiste saisi.
-    if (form.artiste.trim()) ensureContact(user.uid, form.artiste.trim(), contacts).catch(() => {})
     setShowForm(false)
     setEditId(null)
     setForm(emptyForm)

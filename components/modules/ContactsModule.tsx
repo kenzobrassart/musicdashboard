@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useContacts } from '@/hooks/useContacts'
 import { useFactures } from '@/hooks/useFactures'
 import { useAuth } from '@/hooks/useAuth'
-import { addContact, updateContact, deleteContact } from '@/lib/firestore/contacts'
+import { addContact, updateContact, deleteContact, renameContactEverywhere } from '@/lib/firestore/contacts'
 import { fmt } from '@/lib/calc'
 import { UserPlus, Trash2, Pencil, Users, ChevronDown, FileText } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -38,8 +38,11 @@ export default function ContactsModule() {
     setShowForm(true)
   }
 
+  const [editNomOrigine, setEditNomOrigine] = useState('')
+
   function openEdit(c: Contact) {
     setEditId(c.id)
+    setEditNomOrigine(c.nom)
     setForm({
       nom: c.nom, interlocuteur: c.interlocuteur || '', email: c.email || '', telephone: c.telephone || '',
       adresse: c.adresse || '', siret: c.siret || '', tvaIntracom: c.tvaIntracom || '', notes: c.notes || '',
@@ -51,8 +54,14 @@ export default function ContactsModule() {
     e.preventDefault()
     if (!user || !form.nom.trim()) return
     setSaving(true)
-    if (editId) await updateContact(user.uid, editId, form)
-    else await addContact(user.uid, form)
+    if (editId) {
+      const { nom, ...rest } = form
+      await updateContact(user.uid, editId, rest)
+      // Renommer ici propage le nouveau nom sur les cachets/factures liés.
+      if (nom.trim() !== editNomOrigine.trim()) await renameContactEverywhere(user.uid, editId, nom)
+    } else {
+      await addContact(user.uid, form)
+    }
     setShowForm(false)
     setEditId(null)
     setForm(emptyForm)

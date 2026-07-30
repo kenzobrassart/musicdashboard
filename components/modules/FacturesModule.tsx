@@ -9,7 +9,7 @@ import { useProfil } from '@/hooks/useProfil'
 import { addFacture, updateFacture, deleteFacture, genNumeroFacture } from '@/lib/firestore/factures'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
-import { ensureContact } from '@/lib/firestore/contacts'
+import { ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
 import { useCachets } from '@/hooks/useCachets'
 import { useOperations } from '@/hooks/useOperations'
 import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from '@/lib/firestore/documents'
@@ -104,11 +104,22 @@ export default function FacturesModule() {
     setSaving(true)
     try {
       // Le contact est créé à la volée s'il n'existe pas déjà dans le répertoire.
-      const contactId = await ensureContact(user.uid, form.contactNom, contacts)
-      const existingContact = contacts.find((c) => c.id === contactId)
-      const contact: Contact = existingContact || {
-        id: contactId, nom: form.contactNom.trim(), createdAt: new Date(), updatedAt: new Date(),
+      // S'il est déjà lié à cette facture et que le nom a changé, on le renomme
+      // partout plutôt que d'en créer un nouveau — synchro dans les deux sens.
+      const contactNom = form.contactNom.trim()
+      const existingFacture = editId ? factures.find((f) => f.id === editId) : undefined
+      const linkedContact = existingFacture ? contacts.find((c) => c.id === existingFacture.contactId) : undefined
+      let contactId: string
+      if (linkedContact && linkedContact.nom.trim().toLowerCase() !== contactNom.toLowerCase()) {
+        await renameContactEverywhere(user.uid, linkedContact.id, contactNom)
+        contactId = linkedContact.id
+      } else {
+        contactId = await ensureContact(user.uid, contactNom, contacts)
       }
+      // contactNom fait foi : si on vient de renommer, l'état local `contacts`
+      // n'a pas encore reçu la mise à jour temps réel de Firestore.
+      const existingContact = contacts.find((c) => c.id === contactId)
+      const contact: Contact = { ...(existingContact || { id: contactId, createdAt: new Date(), updatedAt: new Date() }), nom: contactNom }
 
       const lignes = form.lignes.filter((l) => l.description.trim())
       const baseData = {
