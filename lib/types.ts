@@ -106,6 +106,7 @@ export interface Facture {
   dateEcheance: string // ISO
   datePaiement?: string // ISO, renseignée au passage en "payée"
   notes?: string
+  referenceCommande?: string // référence bon de commande du client, si applicable
   cachetId?: string // lien vers le placement généré
   operationId?: string // lien vers l'opération générée
   documentId?: string
@@ -122,6 +123,8 @@ export interface ProfilEmetteur {
   telephone?: string
   iban?: string
   bic?: string
+  numeroSacem?: string // numéro d'auteur/éditeur SACEM
+  autreIdentifiant?: string // IPI, CAE, ISWC... selon ce qui s'applique
   mentionTvaDefaut: boolean
 }
 

@@ -9,7 +9,8 @@ export const FISCA_DEFAULT: FiscaSettings = {
 }
 
 export const PROFIL_DEFAULT: ProfilEmetteur = {
-  nom: '', adresse: '', siret: '', email: '', telephone: '', iban: '', bic: '', mentionTvaDefaut: false,
+  nom: '', adresse: '', siret: '', email: '', telephone: '', iban: '', bic: '',
+  numeroSacem: '', autreIdentifiant: '', mentionTvaDefaut: false,
 }
 
 export function subscribeFisca(uid: string, cb: (fx: FiscaSettings) => void, onError?: (e: Error) => void): Unsubscribe {
