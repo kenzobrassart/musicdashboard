@@ -8,14 +8,14 @@ export interface Cachet {
   son: string
   quantite: number
   montant: number // cachet brut total (avant partage coprod)
-  nbComp: number // nombre de compositeurs / coprods
-  maPart: number | null // override manuel de ma part, sinon montant*quantite/nbComp
+  coauteurs: string[] // noms des autres compositeurs (moi exclu) — nbComp = coauteurs.length + 1
+  maPart: number | null // override manuel de ma part, sinon montant*quantite/(coauteurs.length+1)
   paye: boolean
   datePaiement: string // 'YYYY-MM'
   dateStatut: StatutDate
   exclu: boolean // exclu des statistiques (toujours compté en fiscalité/synthèse)
   factureId?: string // facture liée si créée depuis l'outil de facturation
-  clientId?: string
+  contactId?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -32,7 +32,7 @@ export interface Operation {
   montant: number
   exclu: boolean
   factureId?: string
-  clientId?: string
+  contactId?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -58,11 +58,13 @@ export interface DocumentFichier {
   createdAt: Date
 }
 
-// ─── Client (répertoire pour la facturation) ──────────────
-export interface Client {
+// ─── Contact (répertoire — artistes, labels, clients) ─────
+// S'enrichit progressivement : un nouveau nom saisi dans un cachet ou une
+// facture crée automatiquement sa fiche contact s'il n'existe pas déjà.
+export interface Contact {
   id: string
-  nom: string // nom / raison sociale
-  contact?: string
+  nom: string // nom / raison sociale / nom d'artiste
+  interlocuteur?: string // personne à contacter, si différente du nom
   email?: string
   telephone?: string
   adresse?: string
@@ -86,11 +88,11 @@ export interface LigneFacture {
 export interface Facture {
   id: string
   numero: string
-  clientId: string
-  clientNom: string // dénormalisé pour affichage rapide
+  contactId: string
+  contactNom: string // dénormalisé pour affichage rapide
   nature: NatureFacture // 'cachet' => crée/maj un placement, 'autre' => crée/maj une opération
   son?: string // requis si nature = 'cachet'
-  nbComp?: number
+  coauteurs?: string[] // requis si nature = 'cachet'
   categorie?: string // requis si nature = 'autre'
   lignes: LigneFacture[]
   montantHT: number

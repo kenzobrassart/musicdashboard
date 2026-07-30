@@ -3,17 +3,19 @@
 import { useMemo, useState } from 'react'
 import { useCachets } from '@/hooks/useCachets'
 import { useDocuments } from '@/hooks/useDocuments'
+import { useContacts } from '@/hooks/useContacts'
 import { useAuth } from '@/hooks/useAuth'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
+import { ensureContact } from '@/lib/firestore/contacts'
 import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
-import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Cachet, StatutDate } from '@/lib/types'
 
 const emptyForm = {
-  date: '', artiste: '', son: '', quantite: '1', montant: '', nbComp: '1', maPart: '',
+  date: '', artiste: '', son: '', quantite: '1', montant: '', coauteurs: [] as string[], maPart: '',
   paye: false, datePaiement: '', dateStatut: 'ok' as StatutDate,
 }
 
@@ -23,10 +25,12 @@ export default function CachetsModule() {
   const { user } = useAuth()
   const { cachets, loading, error } = useCachets()
   const { documents } = useDocuments()
+  const { contacts } = useContacts()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [coauteurDraft, setCoauteurDraft] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
 
   const partTotal = cachets.reduce((s, c) => s + part(c), 0)
@@ -39,6 +43,7 @@ export default function CachetsModule() {
   function openNew() {
     setEditId(null)
     setForm(emptyForm)
+    setCoauteurDraft('')
     setShowForm(true)
   }
 
@@ -46,11 +51,23 @@ export default function CachetsModule() {
     setEditId(c.id)
     setForm({
       date: c.date || '', artiste: c.artiste || '', son: c.son || '',
-      quantite: String(qte(c)), montant: String(c.montant), nbComp: String(nbComp(c)),
+      quantite: String(qte(c)), montant: String(c.montant), coauteurs: c.coauteurs || [],
       maPart: c.maPart === null || c.maPart === undefined ? '' : String(c.maPart),
       paye: c.paye, datePaiement: c.datePaiement || '', dateStatut: c.dateStatut || 'ok',
     })
+    setCoauteurDraft('')
     setShowForm(true)
+  }
+
+  function addCoauteur() {
+    const name = coauteurDraft.trim()
+    if (!name) return
+    setForm((f) => ({ ...f, coauteurs: [...f.coauteurs, name] }))
+    setCoauteurDraft('')
+  }
+
+  function removeCoauteur(i: number) {
+    setForm((f) => ({ ...f, coauteurs: f.coauteurs.filter((_, idx) => idx !== i) }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -58,14 +75,13 @@ export default function CachetsModule() {
     if (!user || !form.son.trim() || form.montant === '') { alert('Renseignez au moins le son et le cachet total.'); return }
     setSaving(true)
     const quantite = Math.max(1, parseInt(form.quantite, 10) || 1)
-    const nbC = Math.max(1, parseInt(form.nbComp, 10) || 1)
     const rec = {
       date: form.date,
       artiste: form.artiste.trim(),
       son: form.son.trim(),
       quantite,
       montant: parseFloat(form.montant) || 0,
-      nbComp: nbC,
+      coauteurs: form.coauteurs,
       maPart: form.maPart === '' ? null : parseFloat(form.maPart),
       paye: form.paye,
       datePaiement: form.datePaiement,
@@ -77,6 +93,8 @@ export default function CachetsModule() {
     } else {
       await addCachet(user.uid, rec)
     }
+    // Le répertoire de contacts se remplit tout seul avec l'artiste saisi.
+    if (form.artiste.trim()) ensureContact(user.uid, form.artiste.trim(), contacts).catch(() => {})
     setShowForm(false)
     setEditId(null)
     setForm(emptyForm)
@@ -118,8 +136,8 @@ export default function CachetsModule() {
   function handleExportCsv() {
     downloadCsv(
       `cachets-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Date de sortie', 'Artiste', 'Son', 'Quantité', 'Brut', 'Ma part', 'Payé', 'Mois de paiement'],
-      sorted.map((c) => [c.date, c.artiste, c.son, qte(c), brut(c).toFixed(2), part(c).toFixed(2), c.paye ? 'Oui' : 'Non', c.datePaiement])
+      ['Date de sortie', 'Artiste', 'Son', 'Quantité', 'Brut', 'Co-auteurs', 'Ma part', 'Payé', 'Mois de paiement'],
+      sorted.map((c) => [c.date, c.artiste, c.son, qte(c), brut(c).toFixed(2), (c.coauteurs || []).join(', '), part(c).toFixed(2), c.paye ? 'Oui' : 'Non', c.datePaiement])
     )
   }
 
@@ -128,73 +146,98 @@ export default function CachetsModule() {
 
   return (
     <div className="space-y-4">
+      <datalist id="contacts-suggestions">
+        {contacts.map((c) => <option key={c.id} value={c.nom} />)}
+      </datalist>
+
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <p className="text-text-muted text-sm">{cachets.length} placement{cachets.length > 1 ? 's' : ''} · {fmt(partTotal)} de part cumulée</p>
           {attente > 0 && <p className="text-yellow-400 font-bold text-lg tabular-nums">{fmt(attente)} en attente</p>}
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExportCsv} disabled={cachets.length === 0} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors disabled:opacity-40">
+          <button onClick={handleExportCsv} disabled={cachets.length === 0} className="btn-secondary">
             <Download size={16} /> CSV
           </button>
-          <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+          <button onClick={openNew} className="btn-primary">
             <Plus size={16} /> Ajouter un cachet
           </button>
         </div>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-3">
+        <form onSubmit={handleSubmit} className="card-glass p-5 space-y-3 animate-fade-in-up">
           <h3 className="font-semibold text-sm">{editId ? 'Modifier le cachet' : 'Nouveau cachet'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label className="text-xs text-text-muted block mb-1">Date de sortie</label>
               <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+                className="w-full field" />
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Statut de la date</label>
               <select value={form.dateStatut} onChange={(e) => setForm((f) => ({ ...f, dateStatut: e.target.value as StatutDate }))}
                 disabled={!form.date}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand disabled:opacity-50">
+                className="w-full field disabled:opacity-50">
                 <option value="ok">Confirmée</option>
                 <option value="approx">Approximative</option>
               </select>
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Artiste</label>
-              <input value={form.artiste} onChange={(e) => setForm((f) => ({ ...f, artiste: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Nom de l'artiste" />
+              <input list="contacts-suggestions" value={form.artiste} onChange={(e) => setForm((f) => ({ ...f, artiste: e.target.value }))}
+                className="w-full field" placeholder="Nom de l'artiste" />
             </div>
             <div className="sm:col-span-2 lg:col-span-1">
               <label className="text-xs text-text-muted block mb-1">Son *</label>
               <input required value={form.son} onChange={(e) => setForm((f) => ({ ...f, son: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Nom du titre" />
+                className="w-full field" placeholder="Nom du titre" />
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Quantité</label>
               <input type="number" min="1" value={form.quantite} onChange={(e) => setForm((f) => ({ ...f, quantite: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+                className="w-full field" />
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Cachet total (€) *</label>
               <input required type="number" step="0.01" min="0" value={form.montant} onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="0.00" />
+                className="w-full field" placeholder="0.00" />
             </div>
-            <div>
-              <label className="text-xs text-text-muted block mb-1">Nb de compositeurs (coprod)</label>
-              <input type="number" min="1" value={form.nbComp} onChange={(e) => setForm((f) => ({ ...f, nbComp: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="text-xs text-text-muted block mb-1">Co-auteurs (coprod) — moi non compris</label>
+              <div className="flex gap-2">
+                <input
+                  value={coauteurDraft}
+                  onChange={(e) => setCoauteurDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCoauteur() } }}
+                  className="flex-1 field" placeholder="Nom du co-compositeur, puis Entrée"
+                />
+                <button type="button" onClick={addCoauteur} className="btn-secondary px-3">
+                  <Plus size={16} />
+                </button>
+              </div>
+              {form.coauteurs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {form.coauteurs.map((name, i) => (
+                    <span key={i} className="animate-pop-in inline-flex items-center gap-1.5 bg-brand/10 text-brand text-xs font-medium pl-2.5 pr-1.5 py-1 rounded-full">
+                      {name}
+                      <button type="button" onClick={() => removeCoauteur(i)} className="hover:bg-brand/20 rounded-full p-0.5 transition-colors">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Ma part (€) — si différente du partage égal</label>
               <input type="number" step="0.01" min="0" value={form.maPart} onChange={(e) => setForm((f) => ({ ...f, maPart: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="auto : brut / nb coprods" />
+                className="w-full field" placeholder="auto : brut / nb coprods" />
             </div>
             <div>
               <label className="text-xs text-text-muted block mb-1">Statut de paiement</label>
               <select value={form.paye ? '1' : '0'} onChange={(e) => setForm((f) => ({ ...f, paye: e.target.value === '1' }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+                className="w-full field">
                 <option value="0">Non payé</option>
                 <option value="1">Payé</option>
               </select>
@@ -202,20 +245,20 @@ export default function CachetsModule() {
             <div>
               <label className="text-xs text-text-muted block mb-1">Mois de paiement</label>
               <input type="month" value={form.datePaiement} onChange={(e) => setForm((f) => ({ ...f, datePaiement: e.target.value }))}
-                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+                className="w-full field" />
             </div>
           </div>
           {form.montant && (
-            <div className="bg-bg-primary rounded-lg p-3 text-sm flex flex-wrap gap-4">
+            <div className="bg-white/[0.03] rounded-xl p-3 text-sm flex flex-wrap gap-4 animate-fade-in-up">
               <span><span className="text-text-muted">Brut : </span><span className="font-bold tabular-nums">{fmt((parseFloat(form.montant) || 0) * (parseInt(form.quantite, 10) || 1))}</span></span>
-              <span><span className="text-text-muted">Ma part estimée : </span><span className="font-bold text-brand tabular-nums">
-                {fmt(form.maPart !== '' ? (parseFloat(form.maPart) || 0) : ((parseFloat(form.montant) || 0) * (parseInt(form.quantite, 10) || 1)) / (parseInt(form.nbComp, 10) || 1))}
+              <span><span className="text-text-muted">Ma part estimée ({form.coauteurs.length + 1} auteur{form.coauteurs.length ? 's' : ''}) : </span><span className="font-bold text-brand tabular-nums">
+                {fmt(form.maPart !== '' ? (parseFloat(form.maPart) || 0) : ((parseFloat(form.montant) || 0) * (parseInt(form.quantite, 10) || 1)) / (form.coauteurs.length + 1))}
               </span></span>
             </div>
           )}
           <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg border border-bg-border hover:bg-bg-card transition-colors">Annuler</button>
-            <button type="submit" disabled={saving} className="text-sm bg-brand text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Annuler</button>
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? 'Enregistrement...' : editId ? 'Enregistrer' : 'Ajouter'}
             </button>
           </div>
@@ -225,7 +268,7 @@ export default function CachetsModule() {
       {cachets.length === 0 && !showForm && (
         <div className="text-center py-16 text-text-muted">
           <Music2 size={40} className="mx-auto mb-3 text-text-faint" />
-          <p className="font-medium">Aucun placement enregistré</p>
+          <p className="font-medium">Aucun placement enregistré 🎧</p>
           <p className="text-sm mt-1">Ajoutez votre premier cachet pour commencer.</p>
         </div>
       )}
@@ -253,19 +296,19 @@ export default function CachetsModule() {
                 const pct = b > 0 ? Math.round((p / b) * 100) : 100
                 const docs = docsFor(c.son, c.id)
                 return (
-                  <tr key={c.id} className={clsx('border-b border-bg-border/50', c.exclu && 'opacity-50')}>
+                  <tr key={c.id} className={clsx('border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]', c.exclu && 'opacity-50')}>
                     <td className="py-2.5 px-2 whitespace-nowrap">
                       {c.date ? new Date(c.date).toLocaleDateString('fr-FR') : <span className="text-text-faint italic">à renseigner</span>}
                       {c.dateStatut === 'approx' && <span className="text-yellow-400 text-xs ml-1">≈</span>}
                     </td>
                     <td className="py-2.5 px-2">{c.artiste || '—'}</td>
-                    <td className="py-2.5 px-2 font-medium max-w-[220px] truncate">{c.son}</td>
+                    <td className="py-2.5 px-2 font-medium max-w-[220px] truncate" title={c.coauteurs?.length ? `avec ${c.coauteurs.join(', ')}` : undefined}>{c.son}</td>
                     <td className="py-2.5 px-2 text-right tabular-nums">{fmt(b)}</td>
-                    <td className="py-2.5 px-2 text-text-muted text-xs">{n === 1 && pct === 100 ? 'solo' : `1/${n} · ${pct}%`}</td>
+                    <td className="py-2.5 px-2 text-text-muted text-xs" title={c.coauteurs?.join(', ')}>{n === 1 && pct === 100 ? 'solo' : `1/${n} · ${pct}%`}</td>
                     <td className="py-2.5 px-2 text-right tabular-nums font-bold text-brand">{fmt(p)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <button onClick={() => user && updateCachet(user.uid, c.id, { paye: !c.paye })}
-                        className={clsx('text-xs px-2 py-0.5 rounded-full font-medium', c.paye ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400')}>
+                        className={clsx('pill-tap text-xs px-2 py-0.5 rounded-full font-medium', c.paye ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400')}>
                         {c.paye ? 'Payé' : 'En attente'}
                       </button>
                     </td>
@@ -282,13 +325,13 @@ export default function CachetsModule() {
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => user && updateCachet(user.uid, c.id, { exclu: !c.exclu })} title={c.exclu ? 'Réintégrer' : 'Exclure des stats'}
-                          className="text-text-faint hover:text-text-primary transition-colors p-1">
+                          className="btn-ghost-icon hover:text-text-primary p-1">
                           {c.exclu ? <Eye size={14} /> : <EyeOff size={14} />}
                         </button>
-                        <button onClick={() => openEdit(c)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={14} /></button>
+                        <button onClick={() => openEdit(c)} className="btn-ghost-icon hover:text-brand p-1"><Pencil size={14} /></button>
                         <button
                           onClick={() => { if (user && confirm(`Supprimer « ${c.son} » ?`)) deleteCachet(user.uid, c.id) }}
-                          className="text-text-faint hover:text-red-400 transition-colors p-1"><Trash2 size={14} /></button>
+                          className="btn-ghost-icon hover:text-red-400 p-1"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>

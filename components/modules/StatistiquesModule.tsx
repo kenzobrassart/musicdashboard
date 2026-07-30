@@ -62,7 +62,7 @@ export default function StatistiquesModule() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {kpis.map((k) => (
-          <div key={k.label} className="bg-bg-card border border-bg-border rounded-xl p-4">
+          <div key={k.label} className="card-glass p-4 transition-all duration-200 hover:-translate-y-1 hover:border-white/[0.14]">
             <p className="text-text-muted text-xs">{k.label}</p>
             <p className="text-xl font-bold tabular-nums mt-1">{k.value}</p>
           </div>
@@ -70,7 +70,7 @@ export default function StatistiquesModule() {
       </div>
 
       {monthly.length > 0 && (
-        <div className="bg-bg-card border border-bg-border rounded-xl p-5">
+        <div className="card-glass p-5">
           <h2 className="text-sm font-semibold mb-4 text-text-muted uppercase tracking-wide">Encaissements par mois</h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -91,7 +91,7 @@ export default function StatistiquesModule() {
       )}
 
       {parArtiste.length > 0 && (
-        <div className="bg-bg-card border border-bg-border rounded-xl p-5">
+        <div className="card-glass p-5">
           <h2 className="text-sm font-semibold mb-4 text-text-muted uppercase tracking-wide">Par artiste</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">

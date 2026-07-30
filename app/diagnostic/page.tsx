@@ -79,7 +79,7 @@ export default function DiagnosticPage() {
       <p className="text-text-muted text-sm mb-8">Cette page teste directement Firebase, sans passer par le dashboard. Fais une capture d&apos;écran de ce résultat.</p>
       <div className="space-y-4 max-w-2xl">
         {steps.map((s, i) => (
-          <div key={i} className="bg-bg-card border border-bg-border rounded-xl p-4">
+          <div key={i} className="card-glass p-4">
             <div className="flex items-center gap-2 mb-1">
               <span className={
                 s.status === 'ok' ? 'text-green-400' : s.status === 'error' ? 'text-red-400' : 'text-yellow-400 animate-pulse'

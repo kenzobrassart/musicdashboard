@@ -27,9 +27,9 @@ export function qte(c: Pick<Cachet, 'quantite'>) {
   return isNaN(q) || q < 1 ? 1 : q
 }
 
-export function nbComp(c: Pick<Cachet, 'nbComp'>) {
-  const n = Math.floor(c.nbComp)
-  return isNaN(n) || n < 1 ? 1 : n
+// Nombre total de compositeurs sur le titre, moi inclus.
+export function nbComp(c: Pick<Cachet, 'coauteurs'>) {
+  return (c.coauteurs?.length || 0) + 1
 }
 
 export function brut(c: Pick<Cachet, 'montant' | 'quantite'>) {
@@ -37,7 +37,7 @@ export function brut(c: Pick<Cachet, 'montant' | 'quantite'>) {
 }
 
 // Ma part = valeur manuelle si renseignée, sinon brut / nombre de coprods
-export function part(c: Pick<Cachet, 'montant' | 'quantite' | 'nbComp' | 'maPart'>) {
+export function part(c: Pick<Cachet, 'montant' | 'quantite' | 'coauteurs' | 'maPart'>) {
   const p = c.maPart
   if (p !== null && p !== undefined && !isNaN(p)) return p
   return brut(c) / nbComp(c)

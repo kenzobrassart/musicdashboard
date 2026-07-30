@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Music2, Wallet, FolderOpen, Landmark, BarChart3, FileText, Building2 } from 'lucide-react'
+import { LayoutDashboard, Music2, Wallet, FolderOpen, Landmark, BarChart3, FileText, Users } from 'lucide-react'
 import { clsx } from 'clsx'
+import Logo from '@/components/ui/Logo'
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -13,33 +14,42 @@ const nav = [
   { href: '/fiscalite', label: 'Fiscalité', icon: Landmark },
   { href: '/statistiques', label: 'Statistiques', icon: BarChart3 },
   { href: '/factures', label: 'Factures', icon: FileText },
-  { href: '/clients', label: 'Clients', icon: Building2 },
+  { href: '/contacts', label: 'Contacts', icon: Users },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden md:flex flex-col w-56 min-h-screen bg-bg-secondary border-r border-bg-border px-3 py-6">
-      <div className="mb-8 px-3">
-        <span className="text-brand font-bold text-lg tracking-tight">Compta Musique</span>
+    <aside className="hidden md:flex flex-col w-60 min-h-screen bg-white/[0.02] backdrop-blur-xl border-r border-white/[0.06] px-3 py-6">
+      <div className="mb-8 px-3 flex items-center gap-2.5">
+        <Logo size={30} />
+        <span className="font-bold text-lg tracking-tight">Studio Ops</span>
       </div>
       <nav className="flex flex-col gap-1">
-        {nav.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={clsx(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              pathname === href
-                ? 'bg-brand/10 text-brand'
-                : 'text-text-muted hover:text-text-primary hover:bg-bg-card'
-            )}
-          >
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+        {nav.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium',
+                'transition-all duration-200 ease-out',
+                active
+                  ? 'bg-brand/[0.12] text-brand'
+                  : 'text-text-muted hover:text-text-primary hover:bg-white/[0.05] hover:translate-x-0.5'
+              )}
+            >
+              <span className={clsx(
+                'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-full bg-brand transition-all duration-200 ease-out',
+                active ? 'h-5 opacity-100' : 'h-0 opacity-0'
+              )} />
+              <Icon size={18} className="transition-transform duration-200 ease-out group-hover:scale-110" />
+              {label}
+            </Link>
+          )
+        })}
       </nav>
     </aside>
   )

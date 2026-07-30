@@ -1,7 +1,7 @@
 {
-  "name": "Compta Musique",
-  "short_name": "Compta Musique",
-  "description": "Application de comptabilité musicale",
+  "name": "Studio Ops",
+  "short_name": "Studio Ops",
+  "description": "Le cockpit métier du beatmaker — cachets, factures, fiscalité.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#141212",
