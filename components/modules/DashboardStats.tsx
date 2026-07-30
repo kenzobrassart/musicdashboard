@@ -1,41 +1,58 @@
 'use client'
 
-import { useRevenus } from '@/hooks/useRevenus'
-import { useDepenses } from '@/hooks/useDepenses'
-import { useConcerts } from '@/hooks/useConcerts'
-import { useArtistes } from '@/hooks/useArtistes'
+import Link from 'next/link'
+import { useCachets } from '@/hooks/useCachets'
+import { useOperations } from '@/hooks/useOperations'
 import { useFactures } from '@/hooks/useFactures'
-import { TrendingUp, TrendingDown, DollarSign, Music, Users, FileText } from 'lucide-react'
+import { brut, part, qte, fmt } from '@/lib/calc'
+import { TrendingUp, TrendingDown, Wallet, Music2, FileText, Clock } from 'lucide-react'
 import { clsx } from 'clsx'
 
-function fmt(n: number) {
-  return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
-}
-
 export default function DashboardStats() {
-  const { revenus } = useRevenus()
-  const { depenses } = useDepenses()
-  const { concerts } = useConcerts()
-  const { artistes } = useArtistes()
-  const { factures } = useFactures()
+  const { cachets, loading: l1 } = useCachets()
+  const { operations, loading: l2 } = useOperations()
+  const { factures, loading: l3 } = useFactures()
 
-  const totalRevenus = revenus.reduce((s, r) => s + r.montant, 0)
-  const totalDepenses = depenses.reduce((s, d) => s + d.montant, 0)
-  const benefice = totalRevenus - totalDepenses
-  const facturesEnAttente = factures.filter(f => f.statut === 'envoyee' || f.statut === 'en_retard')
-  const montantEnAttente = facturesEnAttente.reduce((s, f) => s + f.montantTTC, 0)
+  if (l1 || l2 || l3) return <div className="text-text-muted animate-pulse">Chargement...</div>
+
+  const brutTotal = cachets.reduce((s, c) => s + brut(c), 0)
+  const partTotal = cachets.reduce((s, c) => s + part(c), 0)
+  const encaisse = cachets.filter((c) => c.paye).reduce((s, c) => s + part(c), 0)
+  const attente = partTotal - encaisse
+  const prods = cachets.reduce((s, c) => s + qte(c), 0)
+  const artistes = new Set(cachets.map((c) => c.artiste).filter(Boolean)).size
+  const revenusAutres = operations.filter((o) => o.type === 'revenu').reduce((s, o) => s + o.montant, 0)
+  const depenses = operations.filter((o) => o.type === 'depense').reduce((s, o) => s + o.montant, 0)
+  const solde = partTotal + revenusAutres - depenses
+  const facturesEnAttente = factures.filter((f) => f.statut === 'envoyee' || f.statut === 'en_retard')
 
   const stats = [
-    { label: 'Revenus totaux', value: fmt(totalRevenus), icon: TrendingUp, color: 'text-green-400', sub: `${revenus.length} entrée${revenus.length > 1 ? 's' : ''}` },
-    { label: 'Dépenses totales', value: fmt(totalDepenses), icon: TrendingDown, color: 'text-red-400', sub: `${depenses.length} entrée${depenses.length > 1 ? 's' : ''}` },
-    { label: 'Bénéfice net', value: fmt(benefice), icon: DollarSign, color: benefice >= 0 ? 'text-green-400' : 'text-red-400', sub: benefice >= 0 ? 'Positif' : 'Négatif' },
-    { label: 'Concerts', value: String(concerts.length), icon: Music, color: 'text-brand', sub: `${concerts.filter(c => c.statut === 'confirme').length} confirmé(s)` },
-    { label: 'Artistes', value: String(artistes.length), icon: Users, color: 'text-brand', sub: 'enregistrés' },
-    { label: 'Factures en attente', value: fmt(montantEnAttente), icon: FileText, color: facturesEnAttente.length > 0 ? 'text-yellow-400' : 'text-green-400', sub: `${facturesEnAttente.length} facture(s)` },
+    { label: 'Prods placées', value: String(prods), icon: Music2, color: 'text-text-primary', sub: `${artistes} artiste${artistes > 1 ? 's' : ''}` },
+    { label: 'Cachets bruts', value: fmt(brutTotal), icon: TrendingUp, color: 'text-text-primary', sub: 'avant partage' },
+    { label: 'Ma part', value: fmt(partTotal), icon: Wallet, color: 'text-brand', sub: prods ? `${fmt(partTotal / prods)} / prod` : '' },
+    { label: 'Encaissé', value: fmt(encaisse), icon: TrendingUp, color: 'text-green-400', sub: partTotal ? `${Math.round((encaisse / partTotal) * 100)} % de ma part` : '' },
+    { label: 'Autres revenus', value: fmt(revenusAutres), icon: TrendingUp, color: 'text-green-400', sub: 'hors cachets' },
+    { label: 'Dépenses', value: fmt(depenses), icon: TrendingDown, color: 'text-red-400', sub: 'non déductibles' },
   ]
+
+  const recentCachets = [...cachets].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5)
+  const enAttentePaiement = cachets.filter((c) => !c.paye).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5)
 
   return (
     <div className="space-y-8">
+      <div className="bg-bg-card border border-bg-border rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-text-muted text-sm">Solde net</p>
+          <p className={clsx('text-3xl font-bold tabular-nums', solde >= 0 ? 'text-green-400' : 'text-red-400')}>{fmt(solde)}</p>
+        </div>
+        {attente > 0 && (
+          <div>
+            <p className="text-text-muted text-sm text-right">En attente d&apos;encaissement</p>
+            <p className="text-yellow-400 font-bold text-xl tabular-nums text-right">{fmt(attente)}</p>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
         {stats.map(({ label, value, icon: Icon, color, sub }) => (
           <div key={label} className="bg-bg-card border border-bg-border rounded-xl p-4 md:p-5">
@@ -50,50 +67,61 @@ export default function DashboardStats() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Derniers revenus */}
         <div className="bg-bg-card border border-bg-border rounded-xl p-5">
-          <h2 className="text-sm font-semibold mb-4 text-text-muted uppercase tracking-wide">Derniers revenus</h2>
-          {revenus.length === 0 ? (
-            <p className="text-text-faint text-sm text-center py-4">Aucun revenu</p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wide">Derniers cachets</h2>
+            <Link href="/cachets" className="text-xs text-brand hover:underline">Voir tout</Link>
+          </div>
+          {recentCachets.length === 0 ? (
+            <p className="text-text-faint text-sm text-center py-4">Aucun cachet</p>
           ) : (
             <ul className="space-y-2">
-              {revenus.slice(0, 5).map(r => (
-                <li key={r.id} className="flex items-center justify-between">
-                  <span className="text-sm truncate max-w-[60%]">{r.description ?? r.type}</span>
-                  <span className="text-green-400 text-sm font-medium tabular-nums">+{fmt(r.montant)}</span>
+              {recentCachets.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-2">
+                  <span className="text-sm truncate max-w-[60%]">{c.son}{c.artiste ? ` — ${c.artiste}` : ''}</span>
+                  <span className="text-brand text-sm font-medium tabular-nums">{fmt(part(c))}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Prochains concerts */}
         <div className="bg-bg-card border border-bg-border rounded-xl p-5">
-          <h2 className="text-sm font-semibold mb-4 text-text-muted uppercase tracking-wide">Prochains concerts</h2>
-          {concerts.length === 0 ? (
-            <p className="text-text-faint text-sm text-center py-4">Aucun concert</p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wide">En attente de paiement</h2>
+            <Clock size={16} className="text-yellow-400" />
+          </div>
+          {enAttentePaiement.length === 0 ? (
+            <p className="text-text-faint text-sm text-center py-4">Tout est encaissé 🎉</p>
           ) : (
             <ul className="space-y-2">
-              {concerts.slice(0, 5).map(c => (
-                <li key={c.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{c.lieu}</p>
-                    <p className="text-text-faint text-xs">{c.ville}</p>
-                  </div>
-                  <span className={clsx(
-                    'text-xs px-2 py-0.5 rounded-full font-medium',
-                    c.statut === 'confirme' ? 'bg-green-400/10 text-green-400' :
-                    c.statut === 'en_attente' ? 'bg-yellow-400/10 text-yellow-400' :
-                    'bg-red-400/10 text-red-400'
-                  )}>
-                    {c.statut === 'confirme' ? 'Confirmé' : c.statut === 'en_attente' ? 'En attente' : 'Annulé'}
-                  </span>
+              {enAttentePaiement.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-2">
+                  <span className="text-sm truncate max-w-[60%]">{c.son}{c.artiste ? ` — ${c.artiste}` : ''}</span>
+                  <span className="text-yellow-400 text-sm font-medium tabular-nums">{fmt(part(c))}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      {facturesEnAttente.length > 0 && (
+        <div className="bg-bg-card border border-bg-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wide flex items-center gap-2"><FileText size={14} /> Factures en attente</h2>
+            <Link href="/factures" className="text-xs text-brand hover:underline">Voir tout</Link>
+          </div>
+          <ul className="space-y-2">
+            {facturesEnAttente.slice(0, 5).map((f) => (
+              <li key={f.id} className="flex items-center justify-between gap-2">
+                <span className="text-sm truncate max-w-[60%]">{f.numero} — {f.clientNom}</span>
+                <span className="text-yellow-400 text-sm font-medium tabular-nums">{fmt(f.montantTTC)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,0 +1,287 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { useCachets } from '@/hooks/useCachets'
+import { useDocuments } from '@/hooks/useDocuments'
+import { useAuth } from '@/hooks/useAuth'
+import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
+import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
+import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye } from 'lucide-react'
+import { clsx } from 'clsx'
+import type { Cachet, StatutDate } from '@/lib/types'
+
+const emptyForm = {
+  date: '', artiste: '', son: '', quantite: '1', montant: '', nbComp: '1', maPart: '',
+  paye: false, datePaiement: '', dateStatut: 'ok' as StatutDate,
+}
+
+type SortKey = 'date' | 'artiste' | 'son' | 'brut' | 'part' | 'statut' | 'paiement'
+
+export default function CachetsModule() {
+  const { user } = useAuth()
+  const { cachets, loading } = useCachets()
+  const { documents } = useDocuments()
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [form, setForm] = useState(emptyForm)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
+
+  const partTotal = cachets.reduce((s, c) => s + part(c), 0)
+  const attente = cachets.filter((c) => !c.paye).reduce((s, c) => s + part(c), 0)
+
+  function docsFor(son: string, cachetId: string) {
+    return documents.filter((d) => d.lien && d.lien.kind === 'cachet' && (d.lien.ref === cachetId || d.lien.ref === son))
+  }
+
+  function openNew() {
+    setEditId(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
+
+  function openEdit(c: Cachet) {
+    setEditId(c.id)
+    setForm({
+      date: c.date || '', artiste: c.artiste || '', son: c.son || '',
+      quantite: String(qte(c)), montant: String(c.montant), nbComp: String(nbComp(c)),
+      maPart: c.maPart === null || c.maPart === undefined ? '' : String(c.maPart),
+      paye: c.paye, datePaiement: c.datePaiement || '', dateStatut: c.dateStatut || 'ok',
+    })
+    setShowForm(true)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user || !form.son.trim() || form.montant === '') { alert('Renseignez au moins le son et le cachet total.'); return }
+    setSaving(true)
+    const quantite = Math.max(1, parseInt(form.quantite, 10) || 1)
+    const nbC = Math.max(1, parseInt(form.nbComp, 10) || 1)
+    const rec = {
+      date: form.date,
+      artiste: form.artiste.trim(),
+      son: form.son.trim(),
+      quantite,
+      montant: parseFloat(form.montant) || 0,
+      nbComp: nbC,
+      maPart: form.maPart === '' ? null : parseFloat(form.maPart),
+      paye: form.paye,
+      datePaiement: form.datePaiement,
+      dateStatut: form.date ? form.dateStatut : ('manquante' as StatutDate),
+      exclu: false,
+    }
+    if (editId) {
+      await updateCachet(user.uid, editId, rec)
+    } else {
+      await addCachet(user.uid, rec)
+    }
+    setShowForm(false)
+    setEditId(null)
+    setForm(emptyForm)
+    setSaving(false)
+  }
+
+  function setSortKey(key: SortKey) {
+    setSort((s) => ({
+      key,
+      dir: s.key === key ? (s.dir === 'asc' ? 'desc' : 'asc') : (['date', 'paiement', 'brut', 'part'].includes(key) ? 'desc' : 'asc'),
+    }))
+  }
+
+  const sorted = useMemo(() => {
+    const mult = sort.dir === 'asc' ? 1 : -1
+    const val = (c: Cachet): string | number => {
+      switch (sort.key) {
+        case 'date': return c.date || ''
+        case 'paiement': return c.datePaiement || ''
+        case 'artiste': return (c.artiste || '').toLowerCase()
+        case 'son': return (c.son || '').toLowerCase()
+        case 'brut': return brut(c)
+        case 'part': return part(c)
+        case 'statut': return c.paye ? 1 : 0
+      }
+    }
+    return [...cachets].sort((a, b) => {
+      const va = val(a), vb = val(b)
+      if (va === '' && vb === '') return 0
+      if (va === '') return 1
+      if (vb === '') return -1
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult
+      return String(va).localeCompare(String(vb), 'fr') * mult
+    })
+  }, [cachets, sort])
+
+  const arrow = (k: SortKey) => (sort.key === k ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')
+
+  if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <p className="text-text-muted text-sm">{cachets.length} placement{cachets.length > 1 ? 's' : ''} · {fmt(partTotal)} de part cumulée</p>
+          {attente > 0 && <p className="text-yellow-400 font-bold text-lg tabular-nums">{fmt(attente)} en attente</p>}
+        </div>
+        <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+          <Plus size={16} /> Ajouter un cachet
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-3">
+          <h3 className="font-semibold text-sm">{editId ? 'Modifier le cachet' : 'Nouveau cachet'}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Date de sortie</label>
+              <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Statut de la date</label>
+              <select value={form.dateStatut} onChange={(e) => setForm((f) => ({ ...f, dateStatut: e.target.value as StatutDate }))}
+                disabled={!form.date}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand disabled:opacity-50">
+                <option value="ok">Confirmée</option>
+                <option value="approx">Approximative</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Artiste</label>
+              <input value={form.artiste} onChange={(e) => setForm((f) => ({ ...f, artiste: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Nom de l'artiste" />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label className="text-xs text-text-muted block mb-1">Son *</label>
+              <input required value={form.son} onChange={(e) => setForm((f) => ({ ...f, son: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="Nom du titre" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Quantité</label>
+              <input type="number" min="1" value={form.quantite} onChange={(e) => setForm((f) => ({ ...f, quantite: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Cachet total (€) *</label>
+              <input required type="number" step="0.01" min="0" value={form.montant} onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Nb de compositeurs (coprod)</label>
+              <input type="number" min="1" value={form.nbComp} onChange={(e) => setForm((f) => ({ ...f, nbComp: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Ma part (€) — si différente du partage égal</label>
+              <input type="number" step="0.01" min="0" value={form.maPart} onChange={(e) => setForm((f) => ({ ...f, maPart: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" placeholder="auto : brut / nb coprods" />
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Statut de paiement</label>
+              <select value={form.paye ? '1' : '0'} onChange={(e) => setForm((f) => ({ ...f, paye: e.target.value === '1' }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
+                <option value="0">Non payé</option>
+                <option value="1">Payé</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-text-muted block mb-1">Mois de paiement</label>
+              <input type="month" value={form.datePaiement} onChange={(e) => setForm((f) => ({ ...f, datePaiement: e.target.value }))}
+                className="w-full bg-bg-primary border border-bg-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            </div>
+          </div>
+          {form.montant && (
+            <div className="bg-bg-primary rounded-lg p-3 text-sm flex flex-wrap gap-4">
+              <span><span className="text-text-muted">Brut : </span><span className="font-bold tabular-nums">{fmt((parseFloat(form.montant) || 0) * (parseInt(form.quantite, 10) || 1))}</span></span>
+              <span><span className="text-text-muted">Ma part estimée : </span><span className="font-bold text-brand tabular-nums">
+                {fmt(form.maPart !== '' ? (parseFloat(form.maPart) || 0) : ((parseFloat(form.montant) || 0) * (parseInt(form.quantite, 10) || 1)) / (parseInt(form.nbComp, 10) || 1))}
+              </span></span>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg border border-bg-border hover:bg-bg-card transition-colors">Annuler</button>
+            <button type="submit" disabled={saving} className="text-sm bg-brand text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+              {saving ? 'Enregistrement...' : editId ? 'Enregistrer' : 'Ajouter'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {cachets.length === 0 && !showForm && (
+        <div className="text-center py-16 text-text-muted">
+          <Music2 size={40} className="mx-auto mb-3 text-text-faint" />
+          <p className="font-medium">Aucun placement enregistré</p>
+          <p className="text-sm mt-1">Ajoutez votre premier cachet pour commencer.</p>
+        </div>
+      )}
+
+      {cachets.length > 0 && (
+        <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <table className="w-full text-sm min-w-[900px]">
+            <thead>
+              <tr className="text-text-muted text-xs uppercase tracking-wide border-b border-bg-border">
+                <th className="text-left font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('date')}>Sortie{arrow('date')}</th>
+                <th className="text-left font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('artiste')}>Artiste{arrow('artiste')}</th>
+                <th className="text-left font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('son')}>Son{arrow('son')}</th>
+                <th className="text-right font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('brut')}>Brut{arrow('brut')}</th>
+                <th className="text-left font-medium py-2 px-2">Partage</th>
+                <th className="text-right font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('part')}>Ma part{arrow('part')}</th>
+                <th className="text-center font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('statut')}>Statut{arrow('statut')}</th>
+                <th className="text-left font-medium py-2 px-2 cursor-pointer" onClick={() => setSortKey('paiement')}>Paiement{arrow('paiement')}</th>
+                <th className="text-center font-medium py-2 px-2">Docs</th>
+                <th className="py-2 px-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((c) => {
+                const b = brut(c), p = part(c), n = nbComp(c)
+                const pct = b > 0 ? Math.round((p / b) * 100) : 100
+                const docs = docsFor(c.son, c.id)
+                return (
+                  <tr key={c.id} className={clsx('border-b border-bg-border/50', c.exclu && 'opacity-50')}>
+                    <td className="py-2.5 px-2 whitespace-nowrap">
+                      {c.date ? new Date(c.date).toLocaleDateString('fr-FR') : <span className="text-text-faint italic">à renseigner</span>}
+                      {c.dateStatut === 'approx' && <span className="text-yellow-400 text-xs ml-1">≈</span>}
+                    </td>
+                    <td className="py-2.5 px-2">{c.artiste || '—'}</td>
+                    <td className="py-2.5 px-2 font-medium max-w-[220px] truncate">{c.son}</td>
+                    <td className="py-2.5 px-2 text-right tabular-nums">{fmt(b)}</td>
+                    <td className="py-2.5 px-2 text-text-muted text-xs">{n === 1 && pct === 100 ? 'solo' : `1/${n} · ${pct}%`}</td>
+                    <td className="py-2.5 px-2 text-right tabular-nums font-bold text-brand">{fmt(p)}</td>
+                    <td className="py-2.5 px-2 text-center">
+                      <button onClick={() => user && updateCachet(user.uid, c.id, { paye: !c.paye })}
+                        className={clsx('text-xs px-2 py-0.5 rounded-full font-medium', c.paye ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400')}>
+                        {c.paye ? 'Payé' : 'En attente'}
+                      </button>
+                    </td>
+                    <td className="py-2.5 px-2 text-xs text-text-muted whitespace-nowrap">
+                      {c.datePaiement ? fmtMois(c.datePaiement) : c.paye ? 'mois à renseigner' : '—'}
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      {docs.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-text-muted"><FileText size={13} />{docs.length}</span>
+                      ) : (
+                        <span className="text-text-faint text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => user && updateCachet(user.uid, c.id, { exclu: !c.exclu })} title={c.exclu ? 'Réintégrer' : 'Exclure des stats'}
+                          className="text-text-faint hover:text-text-primary transition-colors p-1">
+                          {c.exclu ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                        <button onClick={() => openEdit(c)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={14} /></button>
+                        <button
+                          onClick={() => { if (user && confirm(`Supprimer « ${c.son} » ?`)) deleteCachet(user.uid, c.id) }}
+                          className="text-text-faint hover:text-red-400 transition-colors p-1"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
