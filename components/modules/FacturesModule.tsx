@@ -57,6 +57,7 @@ export default function FacturesModule() {
   const [showNewContact, setShowNewContact] = useState(false)
   const [newContactForm, setNewContactForm] = useState({ adresse: '', siret: '', email: '', telephone: '' })
   const [creatingContact, setCreatingContact] = useState(false)
+  const [sourceCachetId, setSourceCachetId] = useState<string | null>(null)
 
   const totalEnAttente = factures.filter((f) => f.statut === 'envoyee' || f.statut === 'en_retard').reduce((s, f) => s + f.montantTTC, 0)
 
@@ -66,6 +67,7 @@ export default function FacturesModule() {
     setCoauteurDraft('')
     setShowNewContact(false)
     setNewContactForm({ adresse: '', siret: '', email: '', telephone: '' })
+    setSourceCachetId(null)
     setShowForm(true)
   }
 
@@ -87,8 +89,25 @@ export default function FacturesModule() {
 
   const pendingAction = useQuickActionStore((s) => s.pending)
   const consumeAction = useQuickActionStore((s) => s.consume)
+  const factureDraft = useQuickActionStore((s) => s.factureDraft)
+  const consumeFactureDraft = useQuickActionStore((s) => s.consumeFactureDraft)
   useEffect(() => {
-    if (pendingAction === 'facture') { openNew(); consumeAction() }
+    if (pendingAction === 'facture') {
+      openNew()
+      if (factureDraft) {
+        setForm((f) => ({
+          ...f,
+          contactNom: factureDraft.contactNom,
+          nature: 'cachet',
+          son: factureDraft.son,
+          coauteurs: factureDraft.coauteurs,
+          lignes: [{ description: factureDraft.son, quantite: factureDraft.quantite, prixUnitaire: factureDraft.prixUnitaire }],
+        }))
+        setSourceCachetId(factureDraft.cachetId)
+        consumeFactureDraft()
+      }
+      consumeAction()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAction])
 
@@ -102,6 +121,7 @@ export default function FacturesModule() {
       referenceCommande: f.referenceCommande || '',
     })
     setCoauteurDraft('')
+    setSourceCachetId(null)
     setShowForm(true)
   }
 
@@ -175,8 +195,11 @@ export default function FacturesModule() {
         cachetId = existing.cachetId
         operationId = existing.operationId
         if (existing.nature === 'cachet' && cachetId) {
+          // Un cachet piloté par une facture n'a qu'une seule ligne : on force
+          // quantité=1 pour que montant HT = brut, quelle qu'ait été la
+          // quantité d'origine (ex. cachet importé lié après coup).
           await updateCachet(user.uid, cachetId, {
-            artiste: contact.nom, son: form.son.trim(), montant: montantHT, coauteurs: form.coauteurs, contactId: contact.id,
+            artiste: contact.nom, son: form.son.trim(), quantite: 1, montant: montantHT, coauteurs: form.coauteurs, contactId: contact.id,
           })
         } else if (existing.nature === 'autre' && operationId) {
           await updateOperation(user.uid, operationId, {
@@ -193,12 +216,22 @@ export default function FacturesModule() {
         factureId = docRef.id
 
         if (form.nature === 'cachet') {
-          const cRef = await addCachet(user.uid, {
-            date: '', artiste: contact.nom, son: form.son.trim(), quantite: 1, montant: montantHT,
-            coauteurs: form.coauteurs, maPart: null, paye: false, datePaiement: '', dateStatut: 'manquante',
-            exclureStats: false, exclureFiscal: false, factureId, contactId: contact.id,
-          })
-          cachetId = cRef.id
+          if (sourceCachetId) {
+            // Facture générée depuis un cachet existant : on relie plutôt que
+            // dupliquer, en normalisant quantité=1 pour éviter tout double comptage.
+            await updateCachet(user.uid, sourceCachetId, {
+              artiste: contact.nom, son: form.son.trim(), quantite: 1, montant: montantHT,
+              coauteurs: form.coauteurs, contactId: contact.id, factureId,
+            })
+            cachetId = sourceCachetId
+          } else {
+            const cRef = await addCachet(user.uid, {
+              date: '', artiste: contact.nom, son: form.son.trim(), quantite: 1, montant: montantHT,
+              coauteurs: form.coauteurs, maPart: null, paye: false, datePaiement: '', dateStatut: 'manquante',
+              exclureStats: false, exclureFiscal: false, factureId, contactId: contact.id,
+            })
+            cachetId = cRef.id
+          }
         } else {
           const oRef = await addOperation(user.uid, {
             date: form.dateEmission, type: 'revenu', categorie: form.categorie.trim() || 'Facturation',
@@ -256,7 +289,7 @@ export default function FacturesModule() {
     await updateFacture(user.uid, f.id, patch)
     if (f.cachetId) {
       await updateCachet(user.uid, f.cachetId, statut === 'payee'
-        ? { paye: true, datePaiement: todayIso().slice(0, 7) }
+        ? { paye: true, datePaiement: todayIso() }
         : { paye: false })
     }
   }
@@ -316,6 +349,9 @@ export default function FacturesModule() {
       {showForm && (
         <form onSubmit={handleSubmit} className="card-glass p-5 space-y-3 animate-fade-in-up">
           <h3 className="font-semibold text-sm">{editId ? 'Modifier la facture' : 'Nouvelle facture'}</h3>
+          {sourceCachetId && !editId && (
+            <p className="text-xs text-brand bg-brand/10 rounded-lg px-3 py-2">Générée depuis un cachet — elle sera reliée à ce placement plutôt que d&apos;en créer un nouveau.</p>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
@@ -364,7 +400,7 @@ export default function FacturesModule() {
             <div>
               <label className="text-xs text-text-muted block mb-1">Nature *</label>
               <select value={form.nature} onChange={(e) => setForm((f) => ({ ...f, nature: e.target.value as NatureFacture }))}
-                disabled={!!editId}
+                disabled={!!editId || !!sourceCachetId}
                 className="w-full field disabled:opacity-50">
                 <option value="cachet">Cachet (prod placée)</option>
                 <option value="autre">Autre revenu</option>

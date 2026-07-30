@@ -73,7 +73,7 @@ export function encaissementsParMois(
     : mode === 'fiscal' ? operations.filter((o) => !o.exclureFiscal)
     : operations
   cs.forEach((c) => {
-    if (c.paye && c.datePaiement) add(c.datePaiement, 'cachets', part(c))
+    if (c.paye && c.datePaiement) add(c.datePaiement.slice(0, 7), 'cachets', part(c))
   })
   os.forEach((o) => {
     if (o.type === 'revenu' && o.date) add(o.date.slice(0, 7), 'autres', o.montant)

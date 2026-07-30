@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useCachets } from '@/hooks/useCachets'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useContacts } from '@/hooks/useContacts'
@@ -8,12 +9,61 @@ import { useAuth } from '@/hooks/useAuth'
 import { useQuickActionStore } from '@/lib/store'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
-import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
+import { uploadDocumentFile, addDocument, deleteDocument } from '@/lib/firestore/documents'
+import { brut, part, qte, nbComp, fmt } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
-import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X, Landmark } from 'lucide-react'
+import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X, Landmark, Upload, Receipt, FileUp } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
-import type { Cachet, StatutDate } from '@/lib/types'
+import type { Cachet, StatutDate, TypeDocument } from '@/lib/types'
+
+const DOC_TYPES: TypeDocument[] = ['Contrat', 'Facture', 'Autre']
+
+interface ImportCachetRow {
+  date_sortie?: string | null
+  date_statut?: string | null
+  artiste?: string
+  son?: string
+  qte?: number
+  cachet_total_eur?: number
+  split?: string
+  ma_part_eur?: number | null
+  statut?: string
+  pieces?: string[]
+  [key: string]: unknown
+}
+
+// L'ancien outil ne connaît pas les vrais noms des coauteurs, seulement une
+// fraction ("1/2 · 50 %") — on crée des repères génériques, renommables
+// ensuite via l'édition du cachet.
+function coauteursFromSplit(split: string | undefined): string[] {
+  if (!split) return []
+  const m = split.match(/1\/(\d+)/)
+  if (!m) return []
+  const n = parseInt(m[1], 10)
+  if (!n || n <= 1) return []
+  return Array.from({ length: n - 1 }, (_, i) => `Co-auteur ${i + 2}`)
+}
+
+function mapImportRow(row: ImportCachetRow) {
+  const dateSortie = row.date_sortie || ''
+  const dateStatut: StatutDate = !dateSortie ? 'manquante' : row.date_statut === 'à confirmer' ? 'approx' : 'ok'
+  const encaisse = (row['encaissé_en'] as string | null | undefined) || null
+  return {
+    date: dateSortie,
+    artiste: (row.artiste || '').trim(),
+    son: (row.son || '').trim(),
+    quantite: Math.max(1, parseInt(String(row.qte ?? 1), 10) || 1),
+    montant: Number(row.cachet_total_eur) || 0,
+    coauteurs: coauteursFromSplit(row.split),
+    maPart: row.ma_part_eur != null ? Number(row.ma_part_eur) : null,
+    paye: row.statut === 'Encaissé',
+    datePaiement: encaisse ? `${encaisse}-01` : '',
+    dateStatut,
+    exclureStats: false,
+    exclureFiscal: false,
+  } satisfies Omit<Cachet, 'id' | 'createdAt' | 'updatedAt' | 'contactId' | 'factureId'>
+}
 
 const emptyForm = {
   date: '', artiste: '', son: '', quantite: '1', montant: '', coauteurs: [] as string[], maPart: '',
@@ -24,6 +74,7 @@ const emptyForm = {
 type SortKey = 'date' | 'artiste' | 'son' | 'brut' | 'part' | 'statut' | 'paiement'
 
 export default function CachetsModule() {
+  const router = useRouter()
   const { user } = useAuth()
   const { cachets, loading, error } = useCachets()
   const { documents } = useDocuments()
@@ -34,6 +85,11 @@ export default function CachetsModule() {
   const [form, setForm] = useState(emptyForm)
   const [coauteurDraft, setCoauteurDraft] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null)
+  const [rowUploading, setRowUploading] = useState<string | null>(null)
 
   const partTotal = cachets.reduce((s, c) => s + part(c), 0)
   const attente = cachets.filter((c) => !c.paye).reduce((s, c) => s + part(c), 0)
@@ -51,10 +107,84 @@ export default function CachetsModule() {
 
   const pendingAction = useQuickActionStore((s) => s.pending)
   const consumeAction = useQuickActionStore((s) => s.consume)
+  const triggerFactureFromCachet = useQuickActionStore((s) => s.triggerFactureFromCachet)
   useEffect(() => {
     if (pendingAction === 'cachet') { openNew(); consumeAction() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAction])
+
+  function handleGenererFacture(c: Cachet) {
+    triggerFactureFromCachet({
+      contactNom: c.artiste, son: c.son, coauteurs: c.coauteurs || [],
+      quantite: qte(c), prixUnitaire: c.montant, cachetId: c.id,
+    })
+    router.push('/factures')
+  }
+
+  async function handleImportFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportText(await file.text())
+    e.target.value = ''
+  }
+
+  const importPreviewCount = useMemo(() => {
+    try {
+      const parsed = JSON.parse(importText)
+      return Array.isArray(parsed) ? parsed.length : null
+    } catch {
+      return null
+    }
+  }, [importText])
+
+  async function handleImportSubmit() {
+    if (!user) return
+    let rows: ImportCachetRow[]
+    try {
+      const parsed = JSON.parse(importText)
+      if (!Array.isArray(parsed)) throw new Error('bad')
+      rows = parsed
+    } catch {
+      alert('JSON invalide : le contenu doit être un tableau de cachets.')
+      return
+    }
+    setImporting(true)
+    try {
+      const contactCache = new Map<string, string>()
+      let piecesTotal = 0
+      for (const row of rows) {
+        const mapped = mapImportRow(row)
+        piecesTotal += Array.isArray(row.pieces) ? row.pieces.length : 0
+        let contactId: string | undefined
+        if (mapped.artiste) {
+          const key = mapped.artiste.toLowerCase()
+          contactId = contactCache.get(key) ?? (await ensureContact(user.uid, mapped.artiste, contacts))
+          contactCache.set(key, contactId)
+        }
+        await addCachet(user.uid, { ...mapped, ...(contactId ? { contactId } : {}) })
+      }
+      setShowImport(false)
+      setImportText('')
+      alert(
+        `${rows.length} cachet${rows.length > 1 ? 's' : ''} importé${rows.length > 1 ? 's' : ''}.` +
+        (piecesTotal > 0 ? ` ${piecesTotal} pièce${piecesTotal > 1 ? 's' : ''} mentionnée${piecesTotal > 1 ? 's' : ''} dans l'ancien fichier (sans le fichier lui-même) — à téléverser depuis la colonne Docs de chaque ligne.` : '')
+      )
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function handleRowUpload(c: Cachet, type: TypeDocument, file: File) {
+    if (!user) return
+    const key = `${c.id}:${type}`
+    setRowUploading(key)
+    try {
+      const { fileUrl, storagePath } = await uploadDocumentFile(user.uid, file, file.name)
+      await addDocument(user.uid, { nom: file.name, type, taille: file.size, fileUrl, storagePath, lien: { kind: 'cachet', ref: c.id } })
+    } finally {
+      setRowUploading(null)
+    }
+  }
 
   function openEdit(c: Cachet) {
     setEditId(c.id)
@@ -163,7 +293,7 @@ export default function CachetsModule() {
   function handleExportCsv() {
     downloadCsv(
       `cachets-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Date de sortie', 'Artiste', 'Son', 'Quantité', 'Brut', 'Co-auteurs', 'Ma part', 'Payé', 'Mois de paiement'],
+      ['Date de sortie', 'Artiste', 'Son', 'Quantité', 'Brut', 'Co-auteurs', 'Ma part', 'Payé', 'Date de paiement'],
       sorted.map((c) => [c.date, c.artiste, c.son, qte(c), brut(c).toFixed(2), (c.coauteurs || []).join(', '), part(c).toFixed(2), c.paye ? 'Oui' : 'Non', c.datePaiement])
     )
   }
@@ -182,15 +312,52 @@ export default function CachetsModule() {
           <p className="text-text-muted text-sm">{cachets.length} placement{cachets.length > 1 ? 's' : ''} · {fmt(partTotal)} de part cumulée</p>
           {attente > 0 && <p className="text-yellow-400 font-bold text-lg tabular-nums">{fmt(attente)} en attente</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={handleExportCsv} disabled={cachets.length === 0} className="btn-secondary">
             <Download size={16} /> CSV
+          </button>
+          <button onClick={() => setShowImport((v) => !v)} className="btn-secondary">
+            <FileUp size={16} /> Importer JSON
           </button>
           <button onClick={openNew} className="btn-primary">
             <Plus size={16} /> Ajouter un cachet
           </button>
         </div>
       </div>
+
+      {showImport && (
+        <div className="card-glass p-5 space-y-3 animate-fade-in-up">
+          <h3 className="font-semibold text-sm">Importer des cachets depuis un JSON (ancienne version)</h3>
+          <p className="text-text-faint text-xs">
+            Colle le contenu ci-dessous, ou choisis directement le fichier .json. Chaque ligne devient un cachet ;
+            les artistes sont automatiquement rattachés (ou créés) dans les contacts. Les pièces mentionnées
+            (facture, contrat...) ne sont pas importées faute de fichier — tu pourras les téléverser ensuite
+            depuis la colonne « Docs » de chaque ligne.
+          </p>
+          <label className="field flex items-center gap-2 cursor-pointer hover:border-brand transition-colors w-fit px-3">
+            <Upload size={14} /> Choisir un fichier .json
+            <input type="file" accept="application/json,.json" className="hidden" onChange={handleImportFilePick} />
+          </label>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={8}
+            placeholder='[{"date_sortie": "2026-03-26", "artiste": "...", "son": "...", ...}]'
+            className="w-full field font-mono text-xs"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-text-muted">
+              {importPreviewCount !== null ? `${importPreviewCount} cachet${importPreviewCount > 1 ? 's' : ''} détecté${importPreviewCount > 1 ? 's' : ''}` : importText ? 'JSON invalide' : ''}
+            </span>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setShowImport(false); setImportText('') }} className="btn-secondary">Annuler</button>
+              <button type="button" onClick={handleImportSubmit} disabled={!importPreviewCount || importing} className="btn-primary">
+                {importing ? 'Import...' : `Importer${importPreviewCount ? ` (${importPreviewCount})` : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="card-glass p-5 space-y-3 animate-fade-in-up">
@@ -270,8 +437,8 @@ export default function CachetsModule() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-text-muted block mb-1">Mois de paiement</label>
-              <input type="month" value={form.datePaiement} onChange={(e) => setForm((f) => ({ ...f, datePaiement: e.target.value }))}
+              <label className="text-xs text-text-muted block mb-1">Date de paiement</label>
+              <input type="date" value={form.datePaiement} onChange={(e) => setForm((f) => ({ ...f, datePaiement: e.target.value }))}
                 className="w-full field" />
             </div>
           </div>
@@ -333,7 +500,8 @@ export default function CachetsModule() {
                 const pct = b > 0 ? Math.round((p / b) * 100) : 100
                 const docs = docsFor(c.son, c.id)
                 return (
-                  <tr key={c.id} className={clsx('border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]', (c.exclureStats || c.exclureFiscal) && 'opacity-50')}>
+                  <Fragment key={c.id}>
+                  <tr className={clsx('border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]', (c.exclureStats || c.exclureFiscal) && 'opacity-50')}>
                     <td className="py-2.5 px-2 whitespace-nowrap">
                       {c.date ? new Date(c.date).toLocaleDateString('fr-FR') : <span className="text-text-faint italic">à renseigner</span>}
                       {c.dateStatut === 'approx' && <span className="text-yellow-400 text-xs ml-1">≈</span>}
@@ -350,17 +518,19 @@ export default function CachetsModule() {
                       </button>
                     </td>
                     <td className="py-2.5 px-2 text-xs text-text-muted whitespace-nowrap">
-                      {c.datePaiement ? fmtMois(c.datePaiement) : c.paye ? 'mois à renseigner' : '—'}
+                      {c.datePaiement ? new Date(c.datePaiement).toLocaleDateString('fr-FR') : c.paye ? 'date à renseigner' : '—'}
                     </td>
                     <td className="py-2.5 px-2 text-center">
-                      {docs.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-text-muted"><FileText size={13} />{docs.length}</span>
-                      ) : (
-                        <span className="text-text-faint text-xs">—</span>
-                      )}
+                      <button onClick={() => setExpandedDocsId((id) => (id === c.id ? null : c.id))}
+                        className={clsx('btn-ghost-icon inline-flex items-center gap-1 text-xs mx-auto', expandedDocsId === c.id && 'text-brand')}>
+                        {docs.length > 0 ? <><FileText size={13} />{docs.length}</> : <span className="text-text-faint">—</span>}
+                      </button>
                     </td>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => handleGenererFacture(c)}
+                          title="Générer une facture pour ce cachet"
+                          className="btn-ghost-icon hover:text-brand p-1"><Receipt size={14} /></button>
                         <button onClick={() => user && updateCachet(user.uid, c.id, { exclureStats: !c.exclureStats })}
                           title={c.exclureStats ? 'Réintégrer dans les statistiques' : 'Exclure des statistiques'}
                           className={clsx('btn-ghost-icon p-1', c.exclureStats ? 'text-yellow-400' : 'hover:text-text-primary')}>
@@ -378,6 +548,40 @@ export default function CachetsModule() {
                       </div>
                     </td>
                   </tr>
+                  {expandedDocsId === c.id && (
+                    <tr className="border-b border-bg-border/50 bg-white/[0.02] animate-fade-in-up">
+                      <td colSpan={10} className="px-4 py-3">
+                        <div className="space-y-2.5">
+                          {docs.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {docs.map((d) => (
+                                <span key={d.id} className="inline-flex items-center gap-1.5 bg-white/[0.05] rounded-full pl-2.5 pr-1 py-1 text-xs">
+                                  <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors">{d.type} · {d.nom}</a>
+                                  <button
+                                    onClick={() => { if (user && confirm(`Supprimer « ${d.nom} » ?`)) deleteDocument(user.uid, d.id, d.storagePath) }}
+                                    className="hover:bg-white/10 rounded-full p-0.5"><X size={11} /></button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {DOC_TYPES.map((t) => {
+                              const key = `${c.id}:${t}`
+                              const busy = rowUploading === key
+                              return (
+                                <label key={t} className={clsx('btn-secondary text-xs px-2.5 py-1.5 cursor-pointer', busy && 'opacity-60 pointer-events-none')}>
+                                  <Upload size={12} /> {busy ? 'Envoi...' : t}
+                                  <input type="file" className="hidden" disabled={busy}
+                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleRowUpload(c, t, f); e.target.value = '' }} />
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>

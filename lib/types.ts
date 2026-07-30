@@ -11,7 +11,7 @@ export interface Cachet {
   coauteurs: string[] // noms des autres compositeurs (moi exclu) — nbComp = coauteurs.length + 1
   maPart: number | null // override manuel de ma part, sinon montant*quantite/(coauteurs.length+1)
   paye: boolean
-  datePaiement: string // 'YYYY-MM'
+  datePaiement: string // ISO date exacte (YYYY-MM-DD), renseignée au passage en "payé"
   dateStatut: StatutDate
   exclureStats: boolean // exclu des statistiques uniquement
   exclureFiscal: boolean // exclu du calcul des cotisations URSSAF uniquement
