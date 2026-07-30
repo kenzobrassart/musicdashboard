@@ -1,21 +1,35 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useClients } from '@/hooks/useClients'
+import { useFactures } from '@/hooks/useFactures'
 import { useAuth } from '@/hooks/useAuth'
 import { addClient, updateClient, deleteClient } from '@/lib/firestore/clients'
-import { UserPlus, Trash2, Pencil, Building2 } from 'lucide-react'
+import { fmt } from '@/lib/calc'
+import { UserPlus, Trash2, Pencil, Building2, ChevronDown, FileText } from 'lucide-react'
+import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
-import type { Client } from '@/lib/types'
+import type { Client, StatutFacture } from '@/lib/types'
+
+const STATUT_LABEL: Record<StatutFacture, string> = {
+  brouillon: 'Brouillon', envoyee: 'Envoyée', payee: 'Payée', en_retard: 'En retard', annulee: 'Annulée',
+}
+const STATUT_COLOR: Record<StatutFacture, string> = {
+  brouillon: 'bg-text-faint/20 text-text-muted', envoyee: 'bg-blue-400/10 text-blue-400',
+  payee: 'bg-green-400/10 text-green-400', en_retard: 'bg-red-400/10 text-red-400', annulee: 'bg-text-faint/20 text-text-faint line-through',
+}
 
 const emptyForm = { nom: '', contact: '', email: '', telephone: '', adresse: '', siret: '', tvaIntracom: '', notes: '' }
 
 export default function ClientsModule() {
   const { user } = useAuth()
   const { clients, loading, error } = useClients()
+  const { factures } = useFactures()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
 
   function openNew() {
@@ -125,23 +139,65 @@ export default function ClientsModule() {
       )}
 
       <div className="space-y-2">
-        {clients.map((c) => (
-          <div key={c.id} className="bg-bg-card border border-bg-border rounded-xl p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-                <span className="text-brand font-bold text-sm">{c.nom[0]?.toUpperCase()}</span>
+        {clients.map((c) => {
+          const clientFactures = factures.filter((f) => f.clientId === c.id).sort((a, b) => b.dateEmission.localeCompare(a.dateEmission))
+          const caTotal = clientFactures.filter((f) => f.statut !== 'annulee').reduce((s, f) => s + f.montantTTC, 0)
+          const expanded = expandedId === c.id
+          return (
+            <div key={c.id} className="bg-bg-card border border-bg-border rounded-xl overflow-hidden">
+              <div className="w-full p-4 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setExpandedId(expanded ? null : c.id)}
+                  className="flex items-center gap-3 min-w-0 text-left flex-1"
+                >
+                  <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                    <span className="text-brand font-bold text-sm">{c.nom[0]?.toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{c.nom}</p>
+                    <p className="text-text-muted text-xs truncate">{c.email || c.contact || c.siret || '—'}</p>
+                  </div>
+                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  {clientFactures.length > 0 && (
+                    <button onClick={() => setExpandedId(expanded ? null : c.id)} className="text-right hidden sm:block">
+                      <p className="text-brand font-bold text-sm tabular-nums">{fmt(caTotal)}</p>
+                      <p className="text-text-faint text-xs">{clientFactures.length} facture{clientFactures.length > 1 ? 's' : ''}</p>
+                    </button>
+                  )}
+                  <button onClick={() => openEdit(c)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={15} /></button>
+                  <button onClick={() => handleDelete(c.id)} className="text-text-faint hover:text-red-400 transition-colors p-1" aria-label="Supprimer"><Trash2 size={16} /></button>
+                  <button onClick={() => setExpandedId(expanded ? null : c.id)} aria-label={expanded ? 'Réduire' : 'Voir les factures'} className="text-text-faint hover:text-text-primary transition-colors p-1">
+                    <ChevronDown size={16} className={clsx('transition-transform', expanded && 'rotate-180')} />
+                  </button>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="font-medium truncate">{c.nom}</p>
-                <p className="text-text-muted text-xs truncate">{c.email || c.contact || c.siret || '—'}</p>
-              </div>
+              {expanded && (
+                <div className="border-t border-bg-border px-4 py-3 bg-bg-primary/40">
+                  {clientFactures.length === 0 ? (
+                    <p className="text-text-faint text-sm py-2">Aucune facture pour ce client pour l&apos;instant.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {clientFactures.map((f) => (
+                        <Link key={f.id} href="/factures" className="flex items-center justify-between gap-3 text-sm py-1.5 hover:text-brand transition-colors">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <FileText size={13} className="text-text-faint shrink-0" />
+                            <span className="font-mono text-xs text-text-muted shrink-0">{f.numero}</span>
+                            <span className="truncate">{f.son || f.categorie || ''}</span>
+                          </span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className={clsx('text-xs px-2 py-0.5 rounded-full font-medium', STATUT_COLOR[f.statut])}>{STATUT_LABEL[f.statut]}</span>
+                            <span className="tabular-nums font-medium">{fmt(f.montantTTC)}</span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => openEdit(c)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={15} /></button>
-              <button onClick={() => handleDelete(c.id)} className="text-text-faint hover:text-red-400 transition-colors p-1" aria-label="Supprimer"><Trash2 size={16} /></button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

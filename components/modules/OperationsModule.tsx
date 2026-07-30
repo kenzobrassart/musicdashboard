@@ -6,7 +6,8 @@ import { useDocuments } from '@/hooks/useDocuments'
 import { useAuth } from '@/hooks/useAuth'
 import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
 import { fmt } from '@/lib/calc'
-import { Plus, Trash2, Pencil, Wallet, FileText, EyeOff, Eye } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv'
+import { Plus, Trash2, Pencil, Wallet, FileText, EyeOff, Eye, Download } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Operation, TypeOperation } from '@/lib/types'
@@ -63,6 +64,14 @@ export default function OperationsModule() {
   const sorted = [...operations].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   const categories = form.type === 'revenu' ? CATEGORIES_REVENU : CATEGORIES_DEPENSE
 
+  function handleExportCsv() {
+    downloadCsv(
+      `operations-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date', 'Type', 'Catégorie', 'Description', 'Montant'],
+      sorted.map((o) => [o.date, o.type === 'revenu' ? 'Revenu' : 'Dépense', o.categorie, o.description, o.montant.toFixed(2)])
+    )
+  }
+
   if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
@@ -73,9 +82,14 @@ export default function OperationsModule() {
           <div><p className="text-text-muted text-xs">Revenus</p><p className="text-green-400 font-bold text-lg tabular-nums">+{fmt(revenus)}</p></div>
           <div><p className="text-text-muted text-xs">Dépenses</p><p className="text-red-400 font-bold text-lg tabular-nums">−{fmt(depenses)}</p></div>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
-          <Plus size={16} /> Ajouter une ligne
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleExportCsv} disabled={operations.length === 0} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors disabled:opacity-40">
+            <Download size={16} /> CSV
+          </button>
+          <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+            <Plus size={16} /> Ajouter une ligne
+          </button>
+        </div>
       </div>
 
       {showForm && (

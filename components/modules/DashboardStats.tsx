@@ -4,10 +4,16 @@ import Link from 'next/link'
 import { useCachets } from '@/hooks/useCachets'
 import { useOperations } from '@/hooks/useOperations'
 import { useFactures } from '@/hooks/useFactures'
-import { brut, part, qte, fmt } from '@/lib/calc'
-import { TrendingUp, TrendingDown, Wallet, Music2, FileText, Clock } from 'lucide-react'
+import { brut, part, qte, fmt, encaissementsParMois } from '@/lib/calc'
+import { TrendingUp, TrendingDown, Wallet, Music2, FileText, Clock, AlertTriangle } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
+
+function moisPrecedent(key: string) {
+  const [y, m] = key.split('-').map(Number)
+  const d = new Date(y, m - 2, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 export default function DashboardStats() {
   const { cachets, loading: l1, error: e1 } = useCachets()
@@ -28,10 +34,19 @@ export default function DashboardStats() {
   const depenses = operations.filter((o) => o.type === 'depense').reduce((s, o) => s + o.montant, 0)
   const solde = partTotal + revenusAutres - depenses
   const facturesEnAttente = factures.filter((f) => f.statut === 'envoyee' || f.statut === 'en_retard')
+  const facturesEnRetard = factures.filter((f) => f.statut === 'en_retard')
+  const montantEnRetard = facturesEnRetard.reduce((s, f) => s + f.montantTTC, 0)
+
+  const moisActuelKey = new Date().toISOString().slice(0, 7)
+  const moisPrecedentKey = moisPrecedent(moisActuelKey)
+  const encMap = encaissementsParMois(cachets, operations, false)
+  const caMoisActuel = (encMap[moisActuelKey]?.cachets || 0) + (encMap[moisActuelKey]?.autres || 0)
+  const caMoisPrecedentVal = (encMap[moisPrecedentKey]?.cachets || 0) + (encMap[moisPrecedentKey]?.autres || 0)
+  const deltaPct = caMoisPrecedentVal > 0 ? Math.round(((caMoisActuel - caMoisPrecedentVal) / caMoisPrecedentVal) * 100) : null
 
   const stats = [
+    { label: 'CA du mois', value: fmt(caMoisActuel), icon: TrendingUp, color: 'text-text-primary', sub: deltaPct === null ? 'pas de mois précédent' : `${deltaPct >= 0 ? '+' : ''}${deltaPct} % vs mois précédent` },
     { label: 'Prods placées', value: String(prods), icon: Music2, color: 'text-text-primary', sub: `${artistes} artiste${artistes > 1 ? 's' : ''}` },
-    { label: 'Cachets bruts', value: fmt(brutTotal), icon: TrendingUp, color: 'text-text-primary', sub: 'avant partage' },
     { label: 'Ma part', value: fmt(partTotal), icon: Wallet, color: 'text-brand', sub: prods ? `${fmt(partTotal / prods)} / prod` : '' },
     { label: 'Encaissé', value: fmt(encaisse), icon: TrendingUp, color: 'text-green-400', sub: partTotal ? `${Math.round((encaisse / partTotal) * 100)} % de ma part` : '' },
     { label: 'Autres revenus', value: fmt(revenusAutres), icon: TrendingUp, color: 'text-green-400', sub: 'hors cachets' },
@@ -43,6 +58,16 @@ export default function DashboardStats() {
 
   return (
     <div className="space-y-8">
+      {facturesEnRetard.length > 0 && (
+        <Link href="/factures" className="flex items-center gap-3 bg-red-400/10 border border-red-400/30 rounded-xl p-4 hover:bg-red-400/15 transition-colors">
+          <AlertTriangle size={18} className="text-red-400 shrink-0" />
+          <p className="text-red-200 text-sm">
+            <span className="font-semibold">{facturesEnRetard.length} facture{facturesEnRetard.length > 1 ? 's' : ''} en retard</span>
+            {' — '}{fmt(montantEnRetard)} à relancer ({facturesEnRetard.map((f) => f.clientNom).join(', ')})
+          </p>
+        </Link>
+      )}
+
       <div className="bg-bg-card border border-bg-border rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-text-muted text-sm">Solde net</p>
