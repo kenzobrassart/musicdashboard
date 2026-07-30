@@ -18,9 +18,11 @@ import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from 
 import { fmt } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
 import ErrorBanner from '@/components/ui/ErrorBanner'
+import EntrepriseLookup from '@/components/ui/EntrepriseLookup'
 import { Plus, Trash2, Pencil, FileText, Download, Settings, X, UserPlus, MapPin } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Facture, StatutFacture, NatureFacture, LigneFacture, Contact } from '@/lib/types'
+import type { EntrepriseResult } from '@/lib/sirene'
 
 const STATUTS: { value: StatutFacture; label: string; color: string }[] = [
   { value: 'brouillon', label: 'Brouillon', color: 'bg-text-faint/20 text-text-muted' },
@@ -55,7 +57,7 @@ export default function FacturesModule() {
   const [form, setForm] = useState(emptyForm())
   const [coauteurDraft, setCoauteurDraft] = useState('')
   const [showNewContact, setShowNewContact] = useState(false)
-  const [newContactForm, setNewContactForm] = useState({ adresse: '', siret: '', email: '', telephone: '' })
+  const [newContactForm, setNewContactForm] = useState({ adresse: '', siret: '', email: '', telephone: '', tvaIntracom: '' })
   const [creatingContact, setCreatingContact] = useState(false)
   const [sourceCachetId, setSourceCachetId] = useState<string | null>(null)
 
@@ -66,7 +68,7 @@ export default function FacturesModule() {
     setForm(emptyForm())
     setCoauteurDraft('')
     setShowNewContact(false)
-    setNewContactForm({ adresse: '', siret: '', email: '', telephone: '' })
+    setNewContactForm({ adresse: '', siret: '', email: '', telephone: '', tvaIntracom: '' })
     setSourceCachetId(null)
     setShowForm(true)
   }
@@ -81,10 +83,15 @@ export default function FacturesModule() {
     try {
       await addContact(user.uid, { nom: form.contactNom.trim(), ...newContactForm })
       setShowNewContact(false)
-      setNewContactForm({ adresse: '', siret: '', email: '', telephone: '' })
+      setNewContactForm({ adresse: '', siret: '', email: '', telephone: '', tvaIntracom: '' })
     } finally {
       setCreatingContact(false)
     }
+  }
+
+  function handleEntrepriseSelect(r: EntrepriseResult) {
+    setForm((f) => ({ ...f, contactNom: f.contactNom.trim() ? f.contactNom : r.nom }))
+    setNewContactForm((p) => ({ ...p, siret: r.siret || p.siret, adresse: r.adresse || p.adresse, tvaIntracom: r.tvaIntracom || p.tvaIntracom }))
   }
 
   const pendingAction = useQuickActionStore((s) => s.pending)
@@ -381,13 +388,16 @@ export default function FacturesModule() {
               {showNewContact && (
                 <div className="mt-2 card-glass p-3 space-y-2 animate-fade-in-up">
                   <p className="text-xs font-medium">Coordonnées de « {form.contactNom.trim() || '...'} »</p>
+                  <EntrepriseLookup onSelect={handleEntrepriseSelect} placeholder="Chercher l'entreprise pour remplir SIRET/adresse/TVA" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input value={newContactForm.adresse} onChange={(e) => setNewContactForm((p) => ({ ...p, adresse: e.target.value }))}
                       className="field text-sm sm:col-span-2" placeholder="Adresse" />
                     <input value={newContactForm.siret} onChange={(e) => setNewContactForm((p) => ({ ...p, siret: e.target.value }))}
                       className="field text-sm" placeholder="SIRET" />
+                    <input value={newContactForm.tvaIntracom} onChange={(e) => setNewContactForm((p) => ({ ...p, tvaIntracom: e.target.value }))}
+                      className="field text-sm" placeholder="TVA intracom." />
                     <input type="email" value={newContactForm.email} onChange={(e) => setNewContactForm((p) => ({ ...p, email: e.target.value }))}
-                      className="field text-sm" placeholder="Email" />
+                      className="field text-sm sm:col-span-2" placeholder="Email" />
                   </div>
                   <div className="flex justify-end">
                     <button type="button" onClick={handleCreateContact} disabled={creatingContact} className="btn-primary text-xs px-3 py-1.5">
