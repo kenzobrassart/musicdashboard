@@ -522,8 +522,15 @@ export default function CachetsModule() {
                     </td>
                     <td className="py-2.5 px-2 text-center">
                       <button onClick={() => setExpandedDocsId((id) => (id === c.id ? null : c.id))}
-                        className={clsx('btn-ghost-icon inline-flex items-center gap-1 text-xs mx-auto', expandedDocsId === c.id && 'text-brand')}>
-                        {docs.length > 0 ? <><FileText size={13} />{docs.length}</> : <span className="text-text-faint">—</span>}
+                        title="Voir / ajouter les documents de ce cachet"
+                        className={clsx(
+                          'pill-tap inline-flex items-center gap-1 text-xs font-medium mx-auto px-2.5 py-1.5 rounded-full border',
+                          docs.length > 0
+                            ? 'bg-brand/10 border-brand/30 text-brand'
+                            : 'bg-white/[0.05] border-white/[0.1] text-text-muted',
+                          expandedDocsId === c.id && 'ring-2 ring-brand/40'
+                        )}>
+                        <FileText size={13} /> {docs.length > 0 ? docs.length : 'Ajouter'}
                       </button>
                     </td>
                     <td className="py-2.5 px-2">
