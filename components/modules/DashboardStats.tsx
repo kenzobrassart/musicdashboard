@@ -38,7 +38,7 @@ export default function DashboardStats() {
 
   const moisActuelKey = new Date().toISOString().slice(0, 7)
   const moisPrecedentKey = moisPrecedent(moisActuelKey)
-  const encMap = encaissementsParMois(cachets, operations, false)
+  const encMap = encaissementsParMois(cachets, operations, 'brut')
   const caMoisActuel = (encMap[moisActuelKey]?.cachets || 0) + (encMap[moisActuelKey]?.autres || 0)
   const caMoisPrecedentVal = (encMap[moisPrecedentKey]?.cachets || 0) + (encMap[moisPrecedentKey]?.autres || 0)
   const deltaPct = caMoisPrecedentVal > 0 ? Math.round(((caMoisActuel - caMoisPrecedentVal) / caMoisPrecedentVal) * 100) : null

@@ -1,15 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCachets } from '@/hooks/useCachets'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useContacts } from '@/hooks/useContacts'
 import { useAuth } from '@/hooks/useAuth'
+import { useQuickActionStore } from '@/lib/store'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { ensureContact, renameContactEverywhere } from '@/lib/firestore/contacts'
 import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
 import { downloadCsv } from '@/lib/csv'
-import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download, X, Landmark } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Cachet, StatutDate } from '@/lib/types'
@@ -17,6 +18,7 @@ import type { Cachet, StatutDate } from '@/lib/types'
 const emptyForm = {
   date: '', artiste: '', son: '', quantite: '1', montant: '', coauteurs: [] as string[], maPart: '',
   paye: false, datePaiement: '', dateStatut: 'ok' as StatutDate,
+  exclureStats: false, exclureFiscal: false,
 }
 
 type SortKey = 'date' | 'artiste' | 'son' | 'brut' | 'part' | 'statut' | 'paiement'
@@ -47,6 +49,13 @@ export default function CachetsModule() {
     setShowForm(true)
   }
 
+  const pendingAction = useQuickActionStore((s) => s.pending)
+  const consumeAction = useQuickActionStore((s) => s.consume)
+  useEffect(() => {
+    if (pendingAction === 'cachet') { openNew(); consumeAction() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction])
+
   function openEdit(c: Cachet) {
     setEditId(c.id)
     setForm({
@@ -54,6 +63,7 @@ export default function CachetsModule() {
       quantite: String(qte(c)), montant: String(c.montant), coauteurs: c.coauteurs || [],
       maPart: c.maPart === null || c.maPart === undefined ? '' : String(c.maPart),
       paye: c.paye, datePaiement: c.datePaiement || '', dateStatut: c.dateStatut || 'ok',
+      exclureStats: c.exclureStats || false, exclureFiscal: c.exclureFiscal || false,
     })
     setCoauteurDraft('')
     setShowForm(true)
@@ -103,7 +113,8 @@ export default function CachetsModule() {
       paye: form.paye,
       datePaiement: form.datePaiement,
       dateStatut: form.date ? form.dateStatut : ('manquante' as StatutDate),
-      exclu: false,
+      exclureStats: form.exclureStats,
+      exclureFiscal: form.exclureFiscal,
       ...(contactId ? { contactId } : {}),
     }
     if (editId) {
@@ -272,6 +283,16 @@ export default function CachetsModule() {
               </span></span>
             </div>
           )}
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.exclureStats} onChange={(e) => setForm((f) => ({ ...f, exclureStats: e.target.checked }))} />
+              Exclure des statistiques
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.exclureFiscal} onChange={(e) => setForm((f) => ({ ...f, exclureFiscal: e.target.checked }))} />
+              Exclure de la fiscalité (déclarations)
+            </label>
+          </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Annuler</button>
             <button type="submit" disabled={saving} className="btn-primary">
@@ -312,7 +333,7 @@ export default function CachetsModule() {
                 const pct = b > 0 ? Math.round((p / b) * 100) : 100
                 const docs = docsFor(c.son, c.id)
                 return (
-                  <tr key={c.id} className={clsx('border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]', c.exclu && 'opacity-50')}>
+                  <tr key={c.id} className={clsx('border-b border-bg-border/50 transition-colors duration-150 hover:bg-white/[0.02]', (c.exclureStats || c.exclureFiscal) && 'opacity-50')}>
                     <td className="py-2.5 px-2 whitespace-nowrap">
                       {c.date ? new Date(c.date).toLocaleDateString('fr-FR') : <span className="text-text-faint italic">à renseigner</span>}
                       {c.dateStatut === 'approx' && <span className="text-yellow-400 text-xs ml-1">≈</span>}
@@ -340,9 +361,15 @@ export default function CachetsModule() {
                     </td>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => user && updateCachet(user.uid, c.id, { exclu: !c.exclu })} title={c.exclu ? 'Réintégrer' : 'Exclure des stats'}
-                          className="btn-ghost-icon hover:text-text-primary p-1">
-                          {c.exclu ? <Eye size={14} /> : <EyeOff size={14} />}
+                        <button onClick={() => user && updateCachet(user.uid, c.id, { exclureStats: !c.exclureStats })}
+                          title={c.exclureStats ? 'Réintégrer dans les statistiques' : 'Exclure des statistiques'}
+                          className={clsx('btn-ghost-icon p-1', c.exclureStats ? 'text-yellow-400' : 'hover:text-text-primary')}>
+                          {c.exclureStats ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                        <button onClick={() => user && updateCachet(user.uid, c.id, { exclureFiscal: !c.exclureFiscal })}
+                          title={c.exclureFiscal ? 'Réintégrer dans la fiscalité' : 'Exclure de la fiscalité (déclarations)'}
+                          className={clsx('btn-ghost-icon p-1', c.exclureFiscal ? 'text-yellow-400' : 'hover:text-text-primary')}>
+                          <Landmark size={14} className={c.exclureFiscal ? 'opacity-40' : ''} />
                         </button>
                         <button onClick={() => openEdit(c)} className="btn-ghost-icon hover:text-brand p-1"><Pencil size={14} /></button>
                         <button

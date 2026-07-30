@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
+import QuickActionButton from './QuickActionButton'
 import Logo from '@/components/ui/Logo'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -38,6 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <QuickActionButton />
       <BottomNav />
     </div>
   )
