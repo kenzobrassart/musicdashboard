@@ -5,10 +5,11 @@ import { useCachets } from '@/hooks/useCachets'
 import { useOperations } from '@/hooks/useOperations'
 import { brut, part, qte, nbComp, encaissementsParMois, fmt, fmtMois } from '@/lib/calc'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 
 export default function StatistiquesModule() {
-  const { cachets, loading: l1 } = useCachets()
-  const { operations, loading: l2 } = useOperations()
+  const { cachets, loading: l1, error: e1 } = useCachets()
+  const { operations, loading: l2, error: e2 } = useOperations()
 
   const sc = useMemo(() => cachets.filter((c) => !c.exclu), [cachets])
 
@@ -51,6 +52,8 @@ export default function StatistiquesModule() {
     { label: 'Meilleur client', value: parArtiste.length ? parArtiste[0].artiste : '—' },
   ]
 
+  const error = e1 || e2
+  if (error) return <ErrorBanner message={error} />
   if (l1 || l2) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (

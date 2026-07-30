@@ -12,10 +12,10 @@ export const PROFIL_DEFAULT: ProfilEmetteur = {
   nom: '', adresse: '', siret: '', email: '', telephone: '', iban: '', bic: '', mentionTvaDefaut: false,
 }
 
-export function subscribeFisca(uid: string, cb: (fx: FiscaSettings) => void): Unsubscribe {
+export function subscribeFisca(uid: string, cb: (fx: FiscaSettings) => void, onError?: (e: Error) => void): Unsubscribe {
   return onSnapshot(doc(db, 'users', uid, META, 'fisca'), (snap) => {
     cb(snap.exists() ? ({ ...FISCA_DEFAULT, ...snap.data() } as FiscaSettings) : FISCA_DEFAULT)
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function saveFisca(uid: string, data: Partial<FiscaSettings>) {
@@ -25,10 +25,10 @@ export async function saveFisca(uid: string, data: Partial<FiscaSettings>) {
   return setDoc(ref, { ...current, ...data })
 }
 
-export function subscribeProfil(uid: string, cb: (profil: ProfilEmetteur) => void): Unsubscribe {
+export function subscribeProfil(uid: string, cb: (profil: ProfilEmetteur) => void, onError?: (e: Error) => void): Unsubscribe {
   return onSnapshot(doc(db, 'users', uid, META, 'profil'), (snap) => {
     cb(snap.exists() ? ({ ...PROFIL_DEFAULT, ...snap.data() } as ProfilEmetteur) : PROFIL_DEFAULT)
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function saveProfil(uid: string, data: Partial<ProfilEmetteur>) {

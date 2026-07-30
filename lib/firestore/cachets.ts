@@ -8,11 +8,11 @@ import type { Cachet } from '@/lib/types'
 
 const COL = 'cachets'
 
-export function subscribeCachets(uid: string, cb: (cachets: Cachet[]) => void): Unsubscribe {
+export function subscribeCachets(uid: string, cb: (cachets: Cachet[]) => void, onError?: (e: Error) => void): Unsubscribe {
   const q = query(collection(db, 'users', uid, COL), orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Cachet)))
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function addCachet(uid: string, data: Omit<Cachet, 'id' | 'createdAt' | 'updatedAt'>) {

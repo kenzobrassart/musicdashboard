@@ -8,11 +8,11 @@ import type { Operation } from '@/lib/types'
 
 const COL = 'operations'
 
-export function subscribeOperations(uid: string, cb: (operations: Operation[]) => void): Unsubscribe {
+export function subscribeOperations(uid: string, cb: (operations: Operation[]) => void, onError?: (e: Error) => void): Unsubscribe {
   const q = query(collection(db, 'users', uid, COL), orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Operation)))
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function addOperation(uid: string, data: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) {

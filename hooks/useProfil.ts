@@ -9,13 +9,14 @@ export function useProfil() {
   const { user } = useAuth()
   const [profil, setProfil] = useState<ProfilEmetteur>(PROFIL_DEFAULT)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
     const unsub = subscribeProfil(user.uid, (data) => {
       setProfil(data)
       setLoading(false)
-    })
+    }, (e) => { setError(e.message); setLoading(false) })
     return unsub
   }, [user])
 
@@ -24,5 +25,5 @@ export function useProfil() {
     await saveProfil(user.uid, patch)
   }
 
-  return { profil, loading, update }
+  return { profil, loading, error, update }
 }

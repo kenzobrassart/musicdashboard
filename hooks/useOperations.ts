@@ -9,15 +9,16 @@ export function useOperations() {
   const { user } = useAuth()
   const [operations, setOperations] = useState<Operation[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
     const unsub = subscribeOperations(user.uid, (data) => {
       setOperations(data)
       setLoading(false)
-    })
+    }, (e) => { setError(e.message); setLoading(false) })
     return unsub
   }, [user])
 
-  return { operations, loading }
+  return { operations, loading, error }
 }

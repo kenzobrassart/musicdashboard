@@ -6,8 +6,10 @@ import { useDocuments } from '@/hooks/useDocuments'
 import { useAuth } from '@/hooks/useAuth'
 import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
 import { brut, part, qte, nbComp, fmt, fmtMois } from '@/lib/calc'
-import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv'
+import { Plus, Trash2, Pencil, Music2, FileText, EyeOff, Eye, Download } from 'lucide-react'
 import { clsx } from 'clsx'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import type { Cachet, StatutDate } from '@/lib/types'
 
 const emptyForm = {
@@ -19,7 +21,7 @@ type SortKey = 'date' | 'artiste' | 'son' | 'brut' | 'part' | 'statut' | 'paieme
 
 export default function CachetsModule() {
   const { user } = useAuth()
-  const { cachets, loading } = useCachets()
+  const { cachets, loading, error } = useCachets()
   const { documents } = useDocuments()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -113,6 +115,15 @@ export default function CachetsModule() {
 
   const arrow = (k: SortKey) => (sort.key === k ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')
 
+  function handleExportCsv() {
+    downloadCsv(
+      `cachets-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date de sortie', 'Artiste', 'Son', 'Quantité', 'Brut', 'Ma part', 'Payé', 'Mois de paiement'],
+      sorted.map((c) => [c.date, c.artiste, c.son, qte(c), brut(c).toFixed(2), part(c).toFixed(2), c.paye ? 'Oui' : 'Non', c.datePaiement])
+    )
+  }
+
+  if (error) return <ErrorBanner message={error} />
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
   return (
@@ -122,9 +133,14 @@ export default function CachetsModule() {
           <p className="text-text-muted text-sm">{cachets.length} placement{cachets.length > 1 ? 's' : ''} · {fmt(partTotal)} de part cumulée</p>
           {attente > 0 && <p className="text-yellow-400 font-bold text-lg tabular-nums">{fmt(attente)} en attente</p>}
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
-          <Plus size={16} /> Ajouter un cachet
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleExportCsv} disabled={cachets.length === 0} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors disabled:opacity-40">
+            <Download size={16} /> CSV
+          </button>
+          <button onClick={openNew} className="flex items-center gap-2 bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+            <Plus size={16} /> Ajouter un cachet
+          </button>
+        </div>
       </div>
 
       {showForm && (

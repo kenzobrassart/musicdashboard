@@ -8,10 +8,14 @@ import { useDocuments } from '@/hooks/useDocuments'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfil } from '@/hooks/useProfil'
 import { addFacture, updateFacture, deleteFacture, genNumeroFacture } from '@/lib/firestore/factures'
-import { addCachet, updateCachet } from '@/lib/firestore/cachets'
-import { addOperation, updateOperation } from '@/lib/firestore/operations'
+import { addCachet, updateCachet, deleteCachet } from '@/lib/firestore/cachets'
+import { addOperation, updateOperation, deleteOperation } from '@/lib/firestore/operations'
+import { useCachets } from '@/hooks/useCachets'
+import { useOperations } from '@/hooks/useOperations'
 import { uploadDocumentFile, addDocument, updateDocument, deleteDocument } from '@/lib/firestore/documents'
 import { fmt } from '@/lib/calc'
+import { downloadCsv } from '@/lib/csv'
+import ErrorBanner from '@/components/ui/ErrorBanner'
 import { Plus, Trash2, Pencil, FileText, Download, Settings } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Facture, StatutFacture, NatureFacture, LigneFacture } from '@/lib/types'
@@ -21,6 +25,7 @@ const STATUTS: { value: StatutFacture; label: string; color: string }[] = [
   { value: 'envoyee', label: 'Envoyée', color: 'bg-blue-400/10 text-blue-400' },
   { value: 'payee', label: 'Payée', color: 'bg-green-400/10 text-green-400' },
   { value: 'en_retard', label: 'En retard', color: 'bg-red-400/10 text-red-400' },
+  { value: 'annulee', label: 'Annulée', color: 'bg-text-faint/20 text-text-faint line-through' },
 ]
 const TVA_OPTIONS = [5.5, 10, 20]
 const todayIso = () => new Date().toISOString().split('T')[0]
@@ -36,9 +41,11 @@ const emptyForm = () => ({
 
 export default function FacturesModule() {
   const { user } = useAuth()
-  const { factures, loading: l1 } = useFactures()
-  const { clients, loading: l2 } = useClients()
+  const { factures, loading: l1, error: e1 } = useFactures()
+  const { clients, loading: l2, error: e2 } = useClients()
   const { documents } = useDocuments()
+  const { cachets } = useCachets()
+  const { operations } = useOperations()
   const { profil, update: updateProfilSettings } = useProfil()
   const [showForm, setShowForm] = useState(false)
   const [showProfil, setShowProfil] = useState(false)
@@ -172,6 +179,19 @@ export default function FacturesModule() {
 
   async function handleStatutChange(f: Facture, statut: StatutFacture) {
     if (!user) return
+    if (statut === 'annulee') {
+      const linkedCachet = f.cachetId ? cachets.find((c) => c.id === f.cachetId) : undefined
+      const linkedOperation = f.operationId ? operations.find((o) => o.id === f.operationId) : undefined
+      let msg = `Annuler la facture ${f.numero} ?`
+      if (linkedCachet && !linkedCachet.paye) msg += ` Le cachet « ${linkedCachet.son} » sera retiré du suivi (non payé à ce jour).`
+      else if (linkedCachet && linkedCachet.paye) msg += ` Le cachet « ${linkedCachet.son} » est déjà marqué payé : il restera dans le suivi, à corriger manuellement si besoin.`
+      if (linkedOperation) msg += ` L'opération liée sera retirée du suivi.`
+      if (!confirm(msg)) return
+      await updateFacture(user.uid, f.id, { statut })
+      if (linkedCachet && !linkedCachet.paye) await deleteCachet(user.uid, linkedCachet.id)
+      if (linkedOperation) await deleteOperation(user.uid, linkedOperation.id)
+      return
+    }
     const patch: Partial<Facture> = { statut }
     if (statut === 'payee') patch.datePaiement = todayIso()
     await updateFacture(user.uid, f.id, patch)
@@ -196,6 +216,20 @@ export default function FacturesModule() {
   }
 
   const loading = l1 || l2
+  const error = e1 || e2
+
+  if (error) return <ErrorBanner message={error} />
+
+  function handleExportCsv() {
+    downloadCsv(
+      `factures-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Numéro', 'Client', 'Nature', 'Statut', 'Émission', 'Échéance', 'Montant HT', 'Montant TTC'],
+      [...factures].sort((a, b) => b.dateEmission.localeCompare(a.dateEmission)).map((f) => [
+        f.numero, f.clientNom, f.nature === 'cachet' ? 'Cachet' : 'Autre revenu', STATUTS.find((s) => s.value === f.statut)?.label || f.statut,
+        f.dateEmission, f.dateEcheance, f.montantHT.toFixed(2), f.montantTTC.toFixed(2),
+      ])
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -204,7 +238,10 @@ export default function FacturesModule() {
           <p className="text-text-muted text-sm">{factures.length} facture{factures.length > 1 ? 's' : ''}</p>
           {totalEnAttente > 0 && <p className="text-yellow-400 font-bold text-lg tabular-nums">{fmt(totalEnAttente)} en attente</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={handleExportCsv} disabled={factures.length === 0} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors disabled:opacity-40">
+            <Download size={16} /> CSV
+          </button>
           <button onClick={() => { setProfilForm(profil); setShowProfil(!showProfil) }} className="flex items-center gap-2 border border-bg-border text-sm font-medium px-4 py-2 rounded-lg hover:bg-bg-card transition-colors">
             <Settings size={16} /> Mes informations
           </button>
@@ -361,7 +398,7 @@ export default function FacturesModule() {
           {factures.map((f) => {
             const statut = STATUTS.find((s) => s.value === f.statut)!
             return (
-              <div key={f.id} className="bg-bg-card border border-bg-border rounded-xl p-4">
+              <div key={f.id} className={clsx('bg-bg-card border border-bg-border rounded-xl p-4', f.statut === 'annulee' && 'opacity-60')}>
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -388,7 +425,9 @@ export default function FacturesModule() {
                           <Download size={15} />
                         </a>
                       )}
-                      <button onClick={() => openEdit(f)} className="text-text-faint hover:text-brand transition-colors p-1"><Pencil size={15} /></button>
+                      {f.statut !== 'annulee' && (
+                        <button onClick={() => openEdit(f)} className="text-text-faint hover:text-brand transition-colors p-1" aria-label="Modifier"><Pencil size={15} /></button>
+                      )}
                       <button onClick={() => handleDelete(f)} className="text-text-faint hover:text-red-400 transition-colors p-1" aria-label="Supprimer"><Trash2 size={15} /></button>
                     </div>
                   </div>

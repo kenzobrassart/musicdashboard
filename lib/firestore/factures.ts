@@ -8,11 +8,11 @@ import type { Facture } from '@/lib/types'
 
 const COL = 'factures'
 
-export function subscribeFactures(uid: string, cb: (factures: Facture[]) => void): Unsubscribe {
+export function subscribeFactures(uid: string, cb: (factures: Facture[]) => void, onError?: (e: Error) => void): Unsubscribe {
   const q = query(collection(db, 'users', uid, COL), orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Facture)))
-  })
+  }, (err) => onError?.(err))
 }
 
 export async function addFacture(uid: string, data: Omit<Facture, 'id' | 'createdAt' | 'updatedAt'>) {

@@ -74,7 +74,7 @@ export interface Client {
 }
 
 // ─── Facture ───────────────────────────────────────────────
-export type StatutFacture = 'brouillon' | 'envoyee' | 'payee' | 'en_retard'
+export type StatutFacture = 'brouillon' | 'envoyee' | 'payee' | 'en_retard' | 'annulee'
 export type NatureFacture = 'cachet' | 'autre'
 
 export interface LigneFacture {
