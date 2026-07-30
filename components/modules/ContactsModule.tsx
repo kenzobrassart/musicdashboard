@@ -10,7 +10,9 @@ import { fmt } from '@/lib/calc'
 import { UserPlus, Trash2, Pencil, Users, ChevronDown, FileText } from 'lucide-react'
 import { clsx } from 'clsx'
 import ErrorBanner from '@/components/ui/ErrorBanner'
+import EntrepriseLookup from '@/components/ui/EntrepriseLookup'
 import type { Contact, StatutFacture } from '@/lib/types'
+import type { EntrepriseResult } from '@/lib/sirene'
 
 const STATUT_LABEL: Record<StatutFacture, string> = {
   brouillon: 'Brouillon', envoyee: 'Envoyée', payee: 'Payée', en_retard: 'En retard', annulee: 'Annulée',
@@ -68,6 +70,16 @@ export default function ContactsModule() {
     setSaving(false)
   }
 
+  function handleEntrepriseSelect(r: EntrepriseResult) {
+    setForm((f) => ({
+      ...f,
+      nom: f.nom.trim() ? f.nom : r.nom,
+      siret: r.siret || f.siret,
+      adresse: r.adresse || f.adresse,
+      tvaIntracom: r.tvaIntracom || f.tvaIntracom,
+    }))
+  }
+
   async function handleDelete(id: string) {
     if (!user || !confirm('Supprimer ce contact ?')) return
     await deleteContact(user.uid, id)
@@ -88,6 +100,10 @@ export default function ContactsModule() {
       {showForm && (
         <form onSubmit={handleSubmit} className="card-glass p-5 space-y-3 animate-fade-in-up">
           <h3 className="font-semibold text-sm">{editId ? 'Modifier le contact' : 'Nouveau contact'}</h3>
+          <div>
+            <label className="text-xs text-text-muted block mb-1">Recherche entreprise (auto-remplissage)</label>
+            <EntrepriseLookup onSelect={handleEntrepriseSelect} />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-text-muted block mb-1">Nom / raison sociale *</label>

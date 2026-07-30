@@ -6,6 +6,8 @@ import { useProfil } from '@/hooks/useProfil'
 import { useFisca } from '@/hooks/useFisca'
 import { TAUX_URSSAF } from '@/lib/types'
 import { Landmark, ArrowRight } from 'lucide-react'
+import EntrepriseLookup from '@/components/ui/EntrepriseLookup'
+import type { EntrepriseResult } from '@/lib/sirene'
 
 export default function ParametresModule() {
   const { profil, loading, update } = useProfil()
@@ -24,12 +26,25 @@ export default function ParametresModule() {
 
   if (loading) return <div className="text-text-muted animate-pulse">Chargement...</div>
 
+  function handleEntrepriseSelect(r: EntrepriseResult) {
+    setForm((p) => ({
+      ...p,
+      nom: p.nom.trim() ? p.nom : r.nom,
+      siret: r.siret || p.siret,
+      adresse: r.adresse || p.adresse,
+    }))
+  }
+
   return (
     <div className="space-y-4 max-w-2xl">
       <form onSubmit={handleSubmit} className="card-glass p-5 space-y-4 animate-fade-in-up">
         <div>
           <h3 className="font-semibold text-sm">Émetteur des factures</h3>
           <p className="text-text-faint text-xs mt-0.5">Ces informations apparaissent sur chaque facture PDF générée.</p>
+        </div>
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Recherche entreprise (auto-remplissage)</label>
+          <EntrepriseLookup onSelect={handleEntrepriseSelect} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
