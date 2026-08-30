@@ -73,7 +73,7 @@ export default function LoginPage() {
         <div className="flex justify-center mb-4">
           <Logo size={44} />
         </div>
-        <h1 className="text-2xl font-bold mb-2 text-center">Studio Ops</h1>
+        <h1 className="text-2xl font-bold mb-2 text-center">Dashboard</h1>
         <p className="text-text-muted mb-6 text-sm text-center">
           {mode === 'login' ? 'Connecte-toi pour accéder à ton espace' : 'Crée ton compte'}
         </p>
