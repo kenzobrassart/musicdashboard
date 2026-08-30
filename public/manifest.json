@@ -4,7 +4,7 @@
   "description": "Le cockpit métier du beatmaker — cachets, factures, fiscalité.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#141212",
+  "background_color": "#000000",
   "theme_color": "#ff563c",
   "orientation": "portrait-primary",
   "icons": [
