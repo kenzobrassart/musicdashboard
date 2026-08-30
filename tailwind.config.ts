@@ -16,7 +16,7 @@ const config: Config = {
           light: '#ff7a65',
         },
         bg: {
-          primary: '#000000',
+          primary: '#0d0b0b',
           secondary: '#1c1a1a',
           card: '#211f1f',
           border: '#2e2b2b',
