@@ -1,4 +1,4 @@
-# Studio Ops — Beatmaker
+# Dashboard — Beatmaker
 
 Dashboard de comptabilité pour activité de beatmaker : suivi des cachets/placements,
 revenus & dépenses divers, documents, fiscalité URSSAF, statistiques et facturation.

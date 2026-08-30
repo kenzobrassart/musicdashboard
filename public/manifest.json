@@ -1,6 +1,6 @@
 {
-  "name": "Studio Ops",
-  "short_name": "Studio Ops",
+  "name": "Dashboard",
+  "short_name": "Dashboard",
   "description": "Le cockpit métier du beatmaker — cachets, factures, fiscalité.",
   "start_url": "/",
   "display": "standalone",

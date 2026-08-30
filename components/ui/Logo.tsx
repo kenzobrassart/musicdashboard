@@ -3,7 +3,7 @@ export default function Logo({ size = 28, className }: { size?: number; classNam
   return (
     <svg
       width={size} height={size} viewBox="0 0 32 32" fill="none"
-      className={className} role="img" aria-label="Studio Ops"
+      className={className} role="img" aria-label="Dashboard"
     >
       <rect width="32" height="32" rx="9" className="fill-brand/15" />
       <rect x="7" y="18" width="3.2" height="7" rx="1.4" className="fill-brand" />

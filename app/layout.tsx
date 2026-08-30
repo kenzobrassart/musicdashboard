@@ -8,13 +8,13 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Studio Ops',
+  title: 'Dashboard',
   description: 'Le cockpit métier du beatmaker — cachets, factures, fiscalité.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Studio Ops',
+    title: 'Dashboard',
   },
 }
 

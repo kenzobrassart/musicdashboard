@@ -28,7 +28,7 @@ export default function Sidebar() {
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-white/[0.02] backdrop-blur-xl border-r border-white/[0.06] px-3 py-6">
       <div className="mb-8 px-3 flex items-center gap-2.5">
         <Logo size={30} />
-        <span className="font-bold text-lg tracking-tight">Studio Ops</span>
+        <span className="font-bold text-lg tracking-tight">Dashboard</span>
       </div>
       <nav className="flex flex-col gap-1 flex-1">
         {nav.map(({ href, label, icon: Icon }) => {
